@@ -27,8 +27,7 @@
 
 ## Проверки
 
-`python -m pytest -q`: 75 offline tests после финального frontend теста
-(повторить перед push). Paid HTTP smoke на сохранённом KK/EN MP3 дважды
+`python -m pytest -q`: 75 offline tests перед push. Paid HTTP smoke на сохранённом KK/EN MP3 дважды
 получил `[SC25, SC29]`, а после UX-исправления ответ был на казахском и
 упомянул обе задачи. Browser UI вручную проверен: текстовый ход с SC25 и
 голосовой ход от микрофона через STT→LLM→TTS. В голосовом ходе браузер
