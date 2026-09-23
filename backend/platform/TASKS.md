@@ -1,14 +1,15 @@
-# Роль 2 — Voice / Backend / Integration
+# Роль 2 — Backend / Integration
 
-Ветка: feat/voice. Зона: backend/platform/**.
+Ветка: feat/backend. Зона: backend/platform/**.
 Начальное состояние: scaffold, интеграционные точки уже созданы; платные вызовы выключены.
 
 ## Задачи по порядку
 
 1. Собрать первый text live path, подключив ScenarioRouter по общему контракту.
-2. voice/stt.py и voice/tts.py: серверные OpenAI-адаптеры, проверки размера/типа
-   аудио, timeouts, отсутствие ключей в браузере, RU/KK/mixed real smoke.
-3. Реализовать существующие voice HTTP endpoints. Streaming добавлять после
+2. Подключить адаптеры из backend/voice/ через согласованный интерфейс.
+   Их реализует роль 1. В своей зоне сделать проверки размера/типа upload,
+   HTTP-ошибки, конфигурацию, ограничение конкурентности и usage accounting.
+3. Реализовать существующие voice HTTP endpoints, вызывающие адаптеры роли 1. Streaming добавлять после
    работающей upload→text→reply→audio цепочки; согласовать с UI.
 4. services/: исполнитель сценария, поиск в knowledge_base/mock_backend,
    идентификация тестового клиента, слоты по slots.json, actions.json.

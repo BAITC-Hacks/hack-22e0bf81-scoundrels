@@ -70,11 +70,11 @@ def create_app() -> FastAPI:
     @app.post("/api/voice/transcribe", response_model=Transcript)
     async def transcribe(file: UploadFile = File(...)):
         await file.close()
-        raise HTTPException(501, "STT is assigned to owner 2; scaffold has no voice provider")
+        raise HTTPException(501, "STT provider: owner 1; HTTP integration: owner 2; not connected yet")
 
     @app.post("/api/voice/synthesize", responses={200: {"content": {"audio/mpeg": {}}}})
     async def synthesize(payload: SpeechRequest):
-        raise HTTPException(501, "TTS is assigned to owner 2; scaffold has no voice provider")
+        raise HTTPException(501, "TTS provider: owner 1; HTTP integration: owner 2; not connected yet")
 
     @app.get("/")
     async def index():
