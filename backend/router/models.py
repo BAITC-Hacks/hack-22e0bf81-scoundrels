@@ -55,3 +55,34 @@ class RouterModelOutput(ModelOutput):
         if self.language != "mixed" and components != [self.language]:
             raise ValueError("single language must match its only component")
         return self
+
+
+class CompactRouterOutput(ModelOutput):
+    """Generate only data used by the application; retain the full public contract."""
+
+    scenario_ids: list[str] = Field(min_length=1, max_length=6)
+    language: Literal["ru", "kk", "en", "mixed"]
+    language_components: list[Literal["ru", "kk", "en"]] = Field(min_length=1, max_length=3)
+    topic_operation: Literal["create", "continue", "switch", "resume", "resolve", "none"]
+    slots: list[ExtractedSlot] = Field(default_factory=list, max_length=20)
+    certainty: Literal["high", "medium", "low"]
+    rationale: str = Field(min_length=1, max_length=180)
+    alternatives: list[RoutedAlternative] = Field(default_factory=list, max_length=2)
+    clarification_question: str | None = Field(default=None, max_length=300)
+
+    def to_full(self) -> RouterModelOutput:
+        return RouterModelOutput(
+            scenarios=[RoutedScenario(scenario_id=item, reason=self.rationale)
+                       for item in self.scenario_ids],
+            alternatives=self.alternatives, language=self.language,
+            language_components=self.language_components, certainty=self.certainty,
+            rationale=self.rationale, slots=self.slots, topic_operation=self.topic_operation,
+            clarification_question=self.clarification_question,
+            is_continuation=self.topic_operation == "continue",
+            requires_confirmation=False,  # Enforced from catalog, never trusted to the LLM.
+        )
+
+    @model_validator(mode="after")
+    def validate_semantics(self):
+        self.to_full()
+        return self

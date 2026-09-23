@@ -1,5 +1,10 @@
 # Голос: контракт для интеграции (роль 1 → роли 2 и 3)
 
+Обновление `feat/try_upgr_perf`: добавлен `OpenAISynthesizer.stream()` с
+контекстным управлением соединением и проверкой размера. Buffered `synthesize()`
+сохранён. HTTP streaming и MediaSource проверены в браузере на RU/KK/EN.
+Замеры и ограничения — `docs/PERFORMANCE.md`.
+
 Ветка `feat/voice`. Адаптеры реализованы и проверены отдельно от HTTP.
 Роль 2 владеет `backend/platform/**`, общими контрактами, бюджетом и endpoints;
 роль 3 — `frontend/**`. После интеграции в `main` сайт работает при

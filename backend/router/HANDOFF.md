@@ -1,5 +1,10 @@
 # Handoff — роль 1
 
+Обновление `feat/try_upgr_perf`: есть opt-in компактная Structured Outputs схема
+и interleaved A/B CLI `backend.router.evals.performance`. Reasoning `none`
+ускоряет ответы, но показал регрессии; по умолчанию оставлен исходный `low`.
+Данные эксперимента: `docs/PERFORMANCE.md`.
+
 Ветка: feat/voice
 Исторический handoff ветки `feat/voice`. Текущий интегрированный статус —
 в корневом `README.md` и `backend/platform/HANDOFF.md`; live-путь в `main`

@@ -104,7 +104,7 @@ export function renderMetricsPanel(container, timings, tracker, lang = "ru") {
   disclaimer.className = "metrics-disclaimer";
   disclaimer.textContent = lang === "kk"
     ? "PTT жуықтауы: түймені жіберуден → дыбыс ойнатуға дейін"
-    : "Приближение PTT: от отпускания кнопки → до события play";
+    : "Приближение PTT: от отпускания кнопки → до начала воспроизведения";
   titleRow.appendChild(disclaimer);
   card.appendChild(titleRow);
 

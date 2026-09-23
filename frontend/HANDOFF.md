@@ -1,5 +1,11 @@
 # Handoff — роль 3 (Frontend / UX)
 
+Обновление `feat/try_upgr_perf`: AudioPlayer воспроизводит MP3 через MediaSource
+до EOF; неподдерживаемые браузеры буферизуют тот же запрос. Замер PTT использует
+`playing`, панель маршрута обновляется до TTS. `performance.html` сравнивает два
+режима (2 платных вызова); `audio_stream.test.mjs` — 4 бесплатных runtime-теста.
+Числа и команды: `docs/PERFORMANCE.md`.
+
 Ветка: `feat/frontend`
 Исторический handoff ветки `feat/frontend`. Она уже слита в `main`; live-путь
 проверен в браузере, а текущие ограничения описаны в корневом `README.md`.

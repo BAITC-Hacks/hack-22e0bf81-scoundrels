@@ -1,5 +1,8 @@
 # Роль 1 — LLM + Voice
 
+Эксперимент `feat/try_upgr_perf`: компактная схема и сравнительный CLI готовы;
+reasoning `none` не включён по умолчанию из-за регрессий. См. `docs/PERFORMANCE.md`.
+
 Ветка: feat/voice. Зоны роли 1: backend/router/** и backend/voice/**.
 Начальное состояние: scaffold, интеграционные точки уже созданы; платные вызовы выключены.
 

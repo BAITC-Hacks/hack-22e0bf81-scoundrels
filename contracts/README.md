@@ -18,11 +18,16 @@ Shared owner: role 2. Public v1 shapes are fixed before parallel work.
   Scaffold returns 501; live adds X-TTS-First-Byte-Ms/X-TTS-Total-Ms.
   Optional `X-Session-ID` ties the reservation to the per-session demo budget;
   without it, only the run-wide limit applies. API key never goes to browser.
+- POST /api/voice/synthesize/stream → same request, progressively delivered audio/mpeg.
+  X-TTS-First-Byte-Ms measures the first provider chunk; total duration is unknown
+  at response start and is not sent as a fabricated header. Errors before the
+  first chunk return 429/502; a later provider failure terminates the stream.
+  The reservation and concurrency slot cover the entire stream, including disconnect cleanup.
 - GET / → frontend; /static/* → frontend/src/*.
 
 First complete voice integration uses upload/transcribe → turns → synthesize/playback.
-Streaming/WebSocket is optional and added after this path works; do not assume an
-undocumented WebSocket endpoint exists.
+The performance branch uses HTTP audio streaming; browsers without MP3 MediaSource
+support buffer that same response. No WebSocket endpoint is implemented.
 
 ## Python
 ScenarioRouter.route(context: RouterContext, catalog: list[Scenario]) -> RouteResult
@@ -52,9 +57,10 @@ assistant_text, decision, topics, timings.
 timings.router_ms = time through fully validated decision, not first token.
 backend_total_ms = API handler duration; does not include microphone, STT, playback.
 stt_ms / tts_first_byte_ms / end_to_audio_ms are null until measured.
-Never use 0 to imply a measurement was taken. Browser measures true end-to-audio
-from actual end of speech to audible playback with one monotonic browser clock;
-don't subtract server timestamps from client timestamps.
+Never use 0 to imply a measurement was taken. Browser uses one monotonic clock:
+PTT stop request (before recorder finalization) → first `playing` event. This is
+an approximation of end-of-speech → playback, not a physical speaker measurement;
+don't subtract server timestamps from client timestamps. `play` is too early for this metric.
 Future streaming events must retain turn_id to prevent overlapping-turn UI corruption.
 
 ## Error & safety boundaries

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_router_model: str | None = None
     openai_router_reasoning_effort: str = "low"
+    openai_router_compact_output: bool = False
     openai_stt_model: str = "gpt-transcribe"
     openai_tts_model: str = "gpt-4o-mini-tts"
     openai_tts_voice: str = "marin"

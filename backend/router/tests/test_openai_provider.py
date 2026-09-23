@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from backend.router.catalog import load_catalog
-from backend.router.models import RouterModelOutput
+from backend.router.models import CompactRouterOutput, RouterModelOutput
 from backend.router.providers.openai_provider import (
     OpenAIRouterProvider,
     RouterConfigurationError,
@@ -168,3 +168,28 @@ def test_model_must_be_explicitly_configured():
     client, _ = fake_client(output())
     with pytest.raises(RouterConfigurationError, match="OPENAI_ROUTER_MODEL"):
         OpenAIRouterProvider(model="", client=client)
+
+
+def test_compact_schema_preserves_order_language_slots_and_catalog_confirmation():
+    parsed = CompactRouterOutput(
+        scenario_ids=["SC28", "SC38"], language="mixed", language_components=["kk", "ru"],
+        topic_operation="switch", slots=[{"name": "policy_number", "value": "TEST-1"}],
+        certainty="high", rationale="Расторжение и подозрительный звонок",
+        alternatives=[], clarification_question=None,
+    )
+    client, calls = fake_client(parsed)
+    result = run(OpenAIRouterProvider(model="configured-model", client=client, compact_output=True))
+    assert calls.calls[0]["text_format"] is CompactRouterOutput
+    assert result.decision.scenario_ids == ["SC38", "SC28"]
+    assert result.decision.requires_confirmation is True
+    assert result.decision.slots[0].value == "TEST-1"
+
+
+def test_compact_schema_keeps_unclear_and_language_validation():
+    from pydantic import ValidationError
+    base = dict(scenario_ids=["SYS_UNCLEAR"], language="mixed", language_components=["kk", "ru"],
+                topic_operation="none", slots=[], certainty="low", rationale="Нужен контекст")
+    with pytest.raises(ValidationError):
+        CompactRouterOutput(**base)
+    with pytest.raises(ValidationError):
+        CompactRouterOutput(**(base | {"language_components": ["ru"]}), clarification_question="Что случилось?")

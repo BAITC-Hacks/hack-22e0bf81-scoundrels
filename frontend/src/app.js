@@ -257,6 +257,7 @@ async function initSession() {
   updateTurnCounter();
   replyText.textContent = dict.waitingReply;
   audioPlayer.stop();
+  audioPlayer.onPlaybackStart = null;
   audioPlayerContainer.hidden = true;
 
   renderSupervisorPanel(supervisorTrace, null, currentUiLang);
@@ -306,6 +307,8 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
 
   showError("");
   setBusy(true);
+  audioPlayer.stop();
+  audioPlayer.onPlaybackStart = null;
 
   try {
     // 1. Send turn to router
@@ -316,11 +319,16 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
 
     // 2. Display assistant text response
     replyText.textContent = result.assistant_text || "(Пустой ответ)";
+    // Show the routing decision as soon as it is ready, independently of TTS.
+    sessionHistory.push(result);
+    renderSupervisorPanel(supervisorTrace, result, currentUiLang);
+    renderMetricsPanel(metricsContainer, result.timings, sessionTracker, currentUiLang);
+    rawJsonTrace.textContent = JSON.stringify(result, null, 2);
 
     // 3. Attempt TTS speech synthesis if text is available
     if (result.assistant_text) {
       try {
-        const { audioBlob, ttsMs } = await synthesizeSpeech(result.assistant_text, result.language, currentSessionId);
+        const { response, ttsMs } = await synthesizeSpeech(result.assistant_text, result.language, currentSessionId, true);
         if (typeof ttsMs === "number") {
           result.timings.tts_first_byte_ms = ttsMs;
         }
@@ -332,24 +340,25 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
             result.timings.end_to_audio_ms = endToAudio;
             sessionTracker.recordSample(endToAudio);
             renderMetricsPanel(metricsContainer, result.timings, sessionTracker, currentUiLang);
+            rawJsonTrace.textContent = JSON.stringify(result, null, 2);
             audioPlayer.onPlaybackStart = null;
           };
         }
 
         audioPlayerContainer.hidden = false;
-        await audioPlayer.playBlob(audioBlob);
+        await audioPlayer.playResponse(response);
       } catch (ttsErr) {
         // Honest 501 scaffold handling: log note, do not break text response
         if (ttsErr instanceof ApiError && ttsErr.isNotImplemented) {
           console.info("TTS is not implemented on server yet (HTTP 501)");
         } else {
           console.warn("TTS playback note:", ttsErr.message);
+          showError(`Не удалось воспроизвести голосовой ответ: ${ttsErr.message}`);
         }
       }
     }
 
     // 4. Update session history and panels
-    sessionHistory.push(result);
     renderSupervisorPanel(supervisorTrace, result, currentUiLang);
     renderMetricsPanel(metricsContainer, result.timings, sessionTracker, currentUiLang);
     rawJsonTrace.textContent = JSON.stringify(result, null, 2);

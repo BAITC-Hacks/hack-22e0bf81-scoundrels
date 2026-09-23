@@ -74,7 +74,8 @@ export class VoiceRecorder {
       };
 
       this.mediaRecorder.onstop = () => {
-        this.speechEndTimestamp = performance.now();
+        // Include recorder finalization/upload time in the PTT end-to-audio measurement.
+        this.speechEndTimestamp ??= performance.now();
         const finalMime = this.mediaRecorder.mimeType || "audio/webm";
         const audioBlob = new Blob(this.audioChunks, { type: finalMime });
         
@@ -90,6 +91,7 @@ export class VoiceRecorder {
       };
 
       this.mediaRecorder.start();
+      this.speechEndTimestamp = null;
       this.isRecording = true;
       if (this.onStateChange) this.onStateChange("recording");
     } catch (err) {
@@ -124,6 +126,7 @@ export class VoiceRecorder {
     if (!this.isRecording || !this.mediaRecorder) return;
     if (this.onStateChange) this.onStateChange("processing");
     try {
+      this.speechEndTimestamp = performance.now();
       this.mediaRecorder.stop();
     } catch (err) {
       if (this.onError) this.onError(err);
@@ -133,7 +136,7 @@ export class VoiceRecorder {
 
 /**
  * Audio playback manager for TTS output.
- * Tracks actual playback start via audio.onplay for monotonic end-to-audio latency calculation.
+ * Measures playback readiness via `playing`, not the earlier `play` request event.
  */
 export class AudioPlayer {
   constructor(audioElement) {
@@ -143,12 +146,15 @@ export class AudioPlayer {
     this.onPlaybackStart = null; // (actualPlayTimestamp: number) => void
     this.onPlaybackEnd = null;   // () => void
     this.onError = null;         // (err: Error) => void
+    this._streamAbort = null;
+    this._reader = null;
+    this.transferCompletedAt = null;
 
     this._setupListeners();
   }
 
   _setupListeners() {
-    this.audioElement.addEventListener("play", () => {
+    this.audioElement.addEventListener("playing", () => {
       const playTimestamp = performance.now();
       if (this.onPlaybackStart) {
         this.onPlaybackStart(playTimestamp);
@@ -186,10 +192,66 @@ export class AudioPlayer {
     }
   }
 
+  /** Play incoming MP3 frames before EOF, with a same-request buffered fallback. */
+  async playResponse(response) {
+    this.stop();
+    this.transferCompletedAt = null;
+    const mime = "audio/mpeg";
+    if (!response.body || typeof MediaSource === "undefined" || !MediaSource.isTypeSupported(mime)) {
+      const blob = await response.blob();
+      this.transferCompletedAt = performance.now();
+      await this.playBlob(blob);
+      return;
+    }
+    const controller = new AbortController();
+    this._streamAbort = controller;
+    const { signal } = controller;
+    const reader = response.body.getReader();
+    this._reader = reader;
+    const media = new MediaSource();
+    this.currentBlobUrl = URL.createObjectURL(media);
+    const opened = mediaEvent(media, "sourceopen", signal);
+    this.audioElement.src = this.currentBlobUrl;
+    let playPromise = null;
+    try {
+      await opened;
+      const buffer = media.addSourceBuffer(mime);
+      while (true) {
+        const { done, value } = await reader.read();
+        signal.throwIfAborted();
+        if (done) break;
+        if (!value.byteLength) continue;
+        const appended = mediaEvent(buffer, "updateend", signal, () => buffer.appendBuffer(value));
+        await appended;
+        if (!playPromise) {
+          playPromise = this.audioElement.play().catch((err) => {
+            // Keep downloading: the visible audio controls still allow a manual play.
+            console.info("Audio autoplay unavailable:", err.message);
+          });
+        }
+      }
+      this.transferCompletedAt = performance.now();
+      if (media.readyState === "open") media.endOfStream();
+      if (playPromise) await playPromise;
+    } catch (err) {
+      if (media.readyState === "open") {
+        try { media.endOfStream("network"); } catch { /* source already closing */ }
+      }
+      throw err;
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+      if (this._reader === reader) this._reader = null;
+      if (this._streamAbort === controller) this._streamAbort = null;
+    }
+  }
+
   /**
    * Stop current playback
    */
   stop() {
+    this._streamAbort?.abort();
+    this._reader?.cancel().catch(() => {});
     this.audioElement.pause();
     this.audioElement.currentTime = 0;
     this._cleanupUrl();
@@ -201,4 +263,23 @@ export class AudioPlayer {
       this.currentBlobUrl = null;
     }
   }
+}
+
+/** Register before triggering a media action so fast events cannot be missed. */
+function mediaEvent(target, event, signal, action = null) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      target.removeEventListener(event, done);
+      target.removeEventListener("error", failed);
+      signal.removeEventListener("abort", aborted);
+    };
+    const done = () => { cleanup(); resolve(); };
+    const failed = () => { cleanup(); reject(new Error("Audio stream could not be decoded")); };
+    const aborted = () => { cleanup(); reject(new DOMException("Playback stopped", "AbortError")); };
+    target.addEventListener(event, done, { once: true });
+    target.addEventListener("error", failed, { once: true });
+    signal.addEventListener("abort", aborted, { once: true });
+    if (signal.aborted) { aborted(); return; }
+    try { action?.(); } catch (err) { cleanup(); reject(err); }
+  });
 }

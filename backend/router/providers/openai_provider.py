@@ -10,7 +10,7 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from contracts.models import Alternative, Decision, RouteResult, RouterContext, Scenario, Slot
-from backend.router.models import RouterModelOutput
+from backend.router.models import CompactRouterOutput, RouterModelOutput
 from backend.router.prompting import build_router_instructions, build_turn_input
 
 
@@ -41,6 +41,7 @@ class OpenAIRouterProvider:
         max_output_tokens: int = 900,
         reasoning_effort: str | None = None,
         prompt_cache_key: str | None = None,
+        compact_output: bool = False,
         usage_callback: Callable[[Any], None] | None = None,
     ):
         if not model or not model.strip():
@@ -57,6 +58,7 @@ class OpenAIRouterProvider:
         self.max_output_tokens = max_output_tokens
         self.reasoning_effort = reasoning_effort
         self.prompt_cache_key = prompt_cache_key
+        self.compact_output = compact_output
         self.usage_callback = usage_callback
         # A timeout can hide an already-billed request. A caller must authorize retries.
         self.client = client or AsyncOpenAI(api_key=api_key, max_retries=0)
@@ -68,11 +70,18 @@ class OpenAIRouterProvider:
         if not catalog:
             raise RouterProviderError("scenario catalog is empty")
         try:
+            instructions = build_router_instructions(catalog)
+            if self.compact_output:
+                instructions += (
+                    "\nUse the compact response schema: scenario_ids contains the ordered IDs. "
+                    "Use one rationale of at most 16 words; alternatives only for genuine ambiguity. "
+                    "Confirmation policy is computed by the application from the catalog."
+                )
             request = dict(
                 model=self.model,
-                instructions=build_router_instructions(catalog),
+                instructions=instructions,
                 input=build_turn_input(context),
-                text_format=RouterModelOutput,
+                text_format=CompactRouterOutput if self.compact_output else RouterModelOutput,
                 max_output_tokens=self.max_output_tokens,
                 store=False,
                 timeout=self.timeout_seconds,
@@ -86,14 +95,22 @@ class OpenAIRouterProvider:
             raise RouterProviderError("OpenAI routing request failed") from exc
 
         if getattr(response, "status", None) != "completed":
+            reason = getattr(getattr(response, "incomplete_details", None), "reason", None)
             raise RouterProviderError(
-                f"OpenAI routing response was not completed: {getattr(response, 'status', None)!r}"
+                f"OpenAI routing response was not completed: {getattr(response, 'status', None)!r}; reason={reason!r}"
             )
         parsed = getattr(response, "output_parsed", None)
         if parsed is None:
             raise RouterProviderError("OpenAI routing response has no parsed output")
-        if not isinstance(parsed, RouterModelOutput):
-            parsed = RouterModelOutput.model_validate(parsed)
+        try:
+            if self.compact_output:
+                if not isinstance(parsed, CompactRouterOutput):
+                    parsed = CompactRouterOutput.model_validate(parsed)
+                parsed = parsed.to_full()
+            elif not isinstance(parsed, RouterModelOutput):
+                parsed = RouterModelOutput.model_validate(parsed)
+        except ValueError as exc:
+            raise RouterProviderError("OpenAI routing output failed validation") from exc
 
         usage = getattr(response, "usage", None)
         if self.usage_callback is not None:

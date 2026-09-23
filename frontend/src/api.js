@@ -150,7 +150,7 @@ export async function transcribeAudio(audioBlob, filename = "speech.webm", sessi
  * @param {'auto'|'ru'|'kk'|'mixed'} [language='auto']
  * @returns {Promise<{ audioBlob: Blob, ttsMs: number|null }>}
  */
-export async function synthesizeSpeech(text, language = "auto", sessionId = null) {
+export async function synthesizeSpeech(text, language = "auto", sessionId = null, stream = false) {
   const cleanText = (text || "").trim();
   if (!cleanText) {
     throw new ApiError(422, "Текст для озвучивания не может быть пустым");
@@ -158,7 +158,7 @@ export async function synthesizeSpeech(text, language = "auto", sessionId = null
 
   let response;
   try {
-    response = await fetch("/api/voice/synthesize", {
+    response = await fetch(stream ? "/api/voice/synthesize/stream" : "/api/voice/synthesize", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(sessionId ? { "X-Session-ID": sessionId } : {}) },
       body: JSON.stringify({ text: cleanText, language: language || "auto" }),
@@ -181,6 +181,7 @@ export async function synthesizeSpeech(text, language = "auto", sessionId = null
   const ttsHeader = response.headers.get("x-tts-first-byte-ms");
   const ttsMs = ttsHeader ? parseFloat(ttsHeader) : null;
 
+  if (stream) return { response, ttsMs };
   const audioBlob = await response.blob();
   return { audioBlob, ttsMs };
 }

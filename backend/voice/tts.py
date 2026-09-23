@@ -1,5 +1,7 @@
 """Speech generation adapter with measured first audio byte and complete MP3 output."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
@@ -38,6 +40,14 @@ class SpeechResult:
     usage: Any | None  # The speech endpoint may not return usage; budget guard must reserve.
 
 
+@dataclass(frozen=True)
+class SpeechStream:
+    chunks: AsyncIterator[bytes]
+    tts_first_byte_ms: float
+    started_at: float
+    content_type: str = "audio/mpeg"
+
+
 class OpenAISynthesizer:
     def __init__(
         self,
@@ -60,6 +70,18 @@ class OpenAISynthesizer:
         self.client = client or AsyncOpenAI(api_key=api_key, max_retries=0)
 
     async def synthesize(self, text: str, *, language: str = "auto") -> SpeechResult:
+        async with self.stream(text, language=language) as stream:
+            chunks = [chunk async for chunk in stream.chunks]
+            return SpeechResult(
+                audio=b"".join(chunks), content_type=stream.content_type,
+                tts_first_byte_ms=stream.tts_first_byte_ms,
+                tts_total_ms=round((perf_counter() - stream.started_at) * 1000, 1),
+                model=self.model, voice=self.voice, input_characters=len(text.strip()), usage=None,
+            )
+
+    @asynccontextmanager
+    async def stream(self, text: str, *, language: str = "auto") -> AsyncIterator[SpeechStream]:
+        """Keep provider open while the consumer plays chunks; close on cancellation too."""
         spoken = text.strip()
         if not spoken or len(spoken) > MAX_SPEECH_CHARACTERS:
             raise SpeechError("speech text must be 1..2000 characters")
@@ -76,33 +98,41 @@ class OpenAISynthesizer:
             request["instructions"] = VOICE_INSTRUCTIONS[language]
 
         started = perf_counter()
-        chunks: list[bytes] = []
-        total_size = 0
-        first_byte_ms: float | None = None
         try:
             async with self.client.audio.speech.with_streaming_response.create(**request) as response:
-                async for chunk in response.iter_bytes():
+                iterator = response.iter_bytes().__aiter__()
+                first = b""
+                async for chunk in iterator:
                     if not chunk:
                         continue
-                    if first_byte_ms is None:
-                        first_byte_ms = round((perf_counter() - started) * 1000, 1)
-                    total_size += len(chunk)
-                    if total_size > MAX_OUTPUT_BYTES:
-                        raise SpeechError("generated audio exceeds 10 MiB")
-                    chunks.append(chunk)
+                    first = chunk
+                    break
+                if not first:
+                    raise SpeechError("OpenAI speech returned no audio")
+                if len(first) > MAX_OUTPUT_BYTES:
+                    raise SpeechError("generated audio exceeds 10 MiB")
+
+                async def chunks():
+                    total_size = len(first)
+                    yield first
+                    try:
+                        async for part in iterator:
+                            if not part:
+                                continue
+                            total_size += len(part)
+                            if total_size > MAX_OUTPUT_BYTES:
+                                raise SpeechError("generated audio exceeds 10 MiB")
+                            yield part
+                    except SpeechError:
+                        raise
+                    except Exception as exc:
+                        raise SpeechError("OpenAI speech stream failed") from exc
+
+                yield SpeechStream(
+                    chunks=chunks(), tts_first_byte_ms=round((perf_counter() - started) * 1000, 1),
+                    started_at=started,
+                )
         except SpeechError:
             raise
         except Exception as exc:
             raise SpeechError("OpenAI speech request failed") from exc
-        if first_byte_ms is None:
-            raise SpeechError("OpenAI speech returned no audio")
-        return SpeechResult(
-            audio=b"".join(chunks),
-            content_type="audio/mpeg",
-            tts_first_byte_ms=first_byte_ms,
-            tts_total_ms=round((perf_counter() - started) * 1000, 1),
-            model=self.model,
-            voice=self.voice,
-            input_characters=len(spoken),
-            usage=None,
-        )
