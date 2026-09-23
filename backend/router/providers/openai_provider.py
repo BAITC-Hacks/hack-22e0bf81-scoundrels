@@ -58,8 +58,8 @@ class OpenAIRouterProvider:
         self.reasoning_effort = reasoning_effort
         self.prompt_cache_key = prompt_cache_key
         self.usage_callback = usage_callback
-        # One SDK retry means at most two paid attempts. The budget guard may later set zero.
-        self.client = client or AsyncOpenAI(api_key=api_key, max_retries=1)
+        # A timeout can hide an already-billed request. A caller must authorize retries.
+        self.client = client or AsyncOpenAI(api_key=api_key, max_retries=0)
 
     async def route(self, context: RouterContext, catalog: list[Scenario]) -> RouteResult:
         return (await self.route_detailed(context, catalog)).result

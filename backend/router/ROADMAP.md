@@ -30,7 +30,7 @@ RU 52/52, KK 45/45, mixed 6/7; holdout 5/5. Prompt cache hit 99.09%.
 Router p50 3.043 s, p95 4.709 s: качество высокое, latency всё ещё существенно выше цели.
 Этап 3 закоммичен и отправлен (`9ba345a`).
 
-## Этап 4 — состояние разговора ✅ (локально)
+## Этап 4 — состояние разговора ✅
 
 Active/parked/resolved topics, slots, continuation/switch/resume, urgent interruption,
 SYS_UNCLEAR и повторный отказ → handoff. Прогон dialogs_sample.json.
@@ -42,25 +42,36 @@ ScenarioRouter применяет reducer после провайдера; пл�
 Финальный live replay gpt-6-luna: 10/10 диалогов, 40/40 routes, 30/30 ожидаемых
 slot names, 40/40 language detection, 0 API/state errors. Cache hit 96.88%; router
 p50 3.317 s, p95 5.106 s. Финальная single-turn regression текущего prompt:
-104/104 по неизменённому official evaluate.py. Этап 4 коммитится и пушится в начале этапа 5.
+104/104 по неизменённому official evaluate.py. Этап 4 отправлен (`4df03b8`).
 
-## Этап 5 — STT адаптер
+## Этап 5 — STT адаптер ✅
 
 В начале этапа сначала commit + push этапа 4. Затем:
 Injectable OpenAI client, форматы/таймауты/usage, offline tests; затем ограниченный
 live smoke на русском, казахском и смешанной речи. Ошибки STT отдельно от routing.
+`gpt-transcribe` на трёх сохранённых MP3 дал пригодный текст и 3/3 routes;
+mini-вариант исказил mixed казахский фрагмент. Это ограниченная проба.
 
-## Этап 6 — TTS адаптер
+## Этап 6 — TTS адаптер ✅ (кроме ручной аудиооценки)
 
 Audio bytes/content type, latency/usage, offline tests; live проверка произношения RU/KK.
 Короткие ответы, без генерации речи во время массовой текстовой оценки.
+MP3 RU/KK/mixed созданы; первый байт 609–752 ms в одном run. Человек ещё
+не подтвердил произношение прослушиванием.
 
-## Этап 7 — интеграция и производительность
+## Этап 7 — интеграция и производительность ◐
 
 Передача интерфейсов роли backend, сквозной микрофон→STT→router→TTS с frontend,
 реальные stage timings и end-to-audio, p50/p95, устойчивые ошибки и лимиты расходов.
+Контракт и stage timings переданы в `backend/voice/HANDOFF.md`. Полная интеграция
+ждёт ветки роли 2/3; текущие `/api/voice/*` возвращают 501. STT+router в
+трёх live пробах заняли 2.96–4.44 s; бонусный порог 1.5 s пока недостижим
+на текущем последовательном пути. Не путать с end-to-audio.
 
-## Этап 8 — финальная приёмка
+## Этап 8 — финальная приёмка ◐
 
 Скрытоподобные новые реплики, demo-сценарии, README с честными цифрами,
 clean-clone репетиция и фиксация известных ограничений.
+Voice-adapter offline tests, ограниченный live RU/KK/mixed smoke и инструкции
+запуска готовы. Общий финальный продукт, browser playback и hidden-набор можно
+принимать только после мерджа backend/frontend. Не заявлять этап завершённым.
