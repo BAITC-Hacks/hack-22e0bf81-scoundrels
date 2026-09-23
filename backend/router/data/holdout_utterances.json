@@ -1,0 +1,17 @@
+{
+  "notice": "Synthetic author-written regression set, separate from official dev. Not a judge score.",
+  "utterances": [
+    {"id": "H01", "text": "Мне выплату уже согласовали, но оценка ремонта занижена вдвое. Хочу оспорить сумму.", "lang": "ru", "type": "single", "expected": ["SC19"]},
+    {"id": "H02", "text": "Полис в приложении активен, а письмо с документом так и не дошло.", "lang": "ru", "type": "single", "expected": ["SC26"]},
+    {"id": "H03", "text": "Картамнан ақша алынды, бірақ қосымшада жаңа полис жоқ.", "lang": "kk", "type": "single", "expected": ["SC30"]},
+    {"id": "H04", "text": "Маған клиникалардың тізімі ғана керек, дәрігерге әзірге жазылмаймын.", "lang": "kk", "type": "single", "expected": ["SC23"]},
+    {"id": "H05", "text": "Адрес офиса подскажите, и ещё прямо сейчас в мой автомобиль въехали на перекрёстке.", "lang": "ru", "type": "multi_intent", "expected": ["SC11", "SC33"]},
+    {"id": "H06", "text": "Жаңа email енгізу керек. Ещё надо добавить второго водителя в действующий полис.", "lang": "mixed", "type": "multi_intent", "expected": ["SC29", "SC04"]},
+    {"id": "H07", "text": "Сейчас говорить не могу, пусть сотрудник наберёт меня завтра после обеда.", "lang": "ru", "type": "single", "expected": ["SC36"]},
+    {"id": "H08", "text": "Ботпен жалғастырғым келмейді, қазір маманмен сөйлесемін.", "lang": "kk", "type": "single", "expected": ["SC37"]},
+    {"id": "H09", "text": "Мне нужен пенсионный аннуитет, автострахование не интересует.", "lang": "ru", "type": "out_of_scope", "expected": ["SYS_OUT_OF_SCOPE"]},
+    {"id": "H10", "text": "Мына мәселені шешу керек еді.", "lang": "kk", "type": "unclear", "expected": ["SYS_UNCLEAR"]},
+    {"id": "H11", "text": "Рақмет, басқа сұрағым жоқ, сау болыңыз.", "lang": "kk", "type": "single", "expected": ["SYS_GOODBYE"]},
+    {"id": "H12", "text": "Шетелдемін, қызуым көтерілді, саяхат полисім бар. И ещё хочу узнать способы оплаты страховки.", "lang": "mixed", "type": "multi_intent", "expected": ["SC15", "SC31"]}
+  ]
+}

@@ -89,13 +89,15 @@ class ScenarioRouter:
             primary = ids[0]
             selected_topic = next((t for t in reversed(topics)
                                    if t.scenario_id == primary and t.status in {"active", "transferred"}), None)
+            if operation == "resolve":
+                selected_topic = next(t for t in topics if t.topic_id == prediction.target_topic_id)
             slots = selected_topic.slots if selected_topic else [Slot(**s.model_dump()) for s in intents[0].slots]
             decision = Decision(
                 action=action, selected_scenario_id=primary, scenario_ids=ids,
                 rationale=prediction.rationale, certainty=prediction.certainty,
                 alternatives=alternatives, topic_operation=operation, slots=slots,
                 clarification_question=question,
-                requires_confirmation=by_id[primary].requires_confirmation if action == "route" else False,
+                requires_confirmation=by_id[primary].requires_confirmation if action == "route" and operation != "resolve" else False,
             )
             result = RouteResult(decision=decision, topics=topics)
             validate_decision_ids(result, catalog)

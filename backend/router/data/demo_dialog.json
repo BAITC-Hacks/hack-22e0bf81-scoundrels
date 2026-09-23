@@ -1,0 +1,39 @@
+{
+  "notice": "SCRIPTED MOCK OUTPUTS: no inference, no LLM accuracy claim, no paid API",
+  "turns": [
+    {
+      "text": "Хочу продлить полис SQ-OGPO-104501.",
+      "intents": [{"scenario_id": "SC27", "slots": [{"name": "policy_number", "value": "SQ-OGPO-104501"}]}],
+      "operation": "create", "language": "ru", "certainty": "high"
+    },
+    {
+      "text": "Алдымен Алматыдағы кеңсе қайда екенін айтыңызшы.",
+      "intents": [{"scenario_id": "SC33", "slots": [{"name": "city", "value": "Almaty"}]}],
+      "operation": "switch", "language": "kk", "certainty": "high"
+    },
+    {
+      "text": "Теперь вернёмся к продлению.",
+      "intents": [{"scenario_id": "SC27", "slots": []}],
+      "operation": "resume", "target_scenario": "SC27", "language": "ru", "certainty": "high"
+    },
+    {
+      "text": "Продление потом, сейчас ДТП, мен жолдамын, пострадавших нет.",
+      "intents": [
+        {"scenario_id": "SC27", "slots": []},
+        {"scenario_id": "SC11", "slots": [{"name": "injured", "value": "false"}, {"name": "location", "value": "на дороге"}]}
+      ],
+      "operation": "continue", "target_scenario": "SC27", "language": "mixed", "certainty": "high"
+    },
+    {
+      "text": "А с этим как?",
+      "intents": [{"scenario_id": "SYS_UNCLEAR", "slots": []}],
+      "operation": "none", "language": "ru", "certainty": "low",
+      "question": "Вы хотите продолжить вопрос о ДТП или о продлении?"
+    },
+    {
+      "text": "Ну вот с тем самым.",
+      "intents": [{"scenario_id": "SYS_UNCLEAR", "slots": []}],
+      "operation": "none", "language": "ru", "certainty": "low"
+    }
+  ]
+}

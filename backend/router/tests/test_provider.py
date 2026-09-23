@@ -96,3 +96,42 @@ def test_actual_openai_sdk_through_mock_transport():
     asyncio.run(scenario())
     assert len(requests) == 1
     assert requests[0]["text"]["format"]["schema"]["additionalProperties"] is False
+
+
+def test_sdk_rate_limit_has_at_most_one_explicit_retry():
+    requests = []
+    def handler(request):
+        requests.append(request)
+        return httpx2.Response(429, json={"error": {"message": "private upstream detail", "type": "rate_limit"}})
+
+    async def scenario():
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
+            budget = RecordingBudget()
+            provider = OpenAIProvider(client=AsyncOpenAI(api_key="offline-test-key", http_client=http),
+                                      budget=budget, settings=ProviderSettings(model="offline-model", max_retries=1))
+            with pytest.raises(RouterProviderError, match="provider_http_error"):
+                await provider.predict([])
+            assert len(budget.estimates) == len(budget.settlements) == 2
+    asyncio.run(scenario())
+    assert len(requests) == 2
+
+
+def test_wall_clock_timeout_and_cancellation_settle_unknown():
+    class SlowClient(ScriptedClient):
+        async def create(self, **kwargs):
+            await asyncio.sleep(10)
+
+    async def scenario():
+        budget = RecordingBudget()
+        provider = OpenAIProvider(client=SlowClient(), budget=budget,
+                                  settings=ProviderSettings(model="offline-model", timeout_seconds=0.01))
+        with pytest.raises(RouterProviderError, match="timeout"):
+            await provider.predict([])
+        assert budget.settlements == [("1", None)]
+        pending = asyncio.create_task(provider.predict([]))
+        await asyncio.sleep(0)
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        assert budget.settlements[-1] == ("2", None)
+    asyncio.run(scenario())

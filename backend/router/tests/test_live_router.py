@@ -136,3 +136,40 @@ def test_live_cannot_silently_become_scaffold():
         ScenarioRouter(mode="live")
     with pytest.raises(ValueError):
         ScenarioRouter(ScriptedProvider())
+
+
+def test_duplicate_scenario_topics_require_target(catalog):
+    topics = [Topic(topic_id="a", scenario_id="SC27", status="parked"),
+              Topic(topic_id="b", scenario_id="SC27", status="active")]
+    with pytest.raises(RouterProviderError):
+        run(prediction("SC27", topic_operation="resume"), catalog, topics=topics)
+    trace, _, _ = run(prediction("SC27", topic_operation="resume", target_topic_id="a"), catalog, topics=topics)
+    assert [t.status for t in trace.result.topics] == ["active", "parked"]
+
+
+def test_invalid_context_rejected_before_paid_provider(catalog):
+    provider = ScriptedProvider()
+    router = ScenarioRouter(provider, mode="live")
+    context = RouterContext(text="x", language="ru", topics=[Topic(topic_id="a", scenario_id="BAD", status="active")])
+    with pytest.raises(ValueError):
+        asyncio.run(router.route(context, catalog))
+    assert not provider.calls
+
+
+@pytest.mark.parametrize(("scenario", "name", "value"), [
+    ("SC30", "payment_date", "2026-02-30"), ("SC36", "phone", "7011234567"),
+    ("SC11", "injured", "нет"), ("SC33", "city", "Алматы"),
+    ("SC01", "drivers_iin", '["invalid"]'),
+])
+def test_slot_formats_are_not_silently_accepted(catalog, scenario, name, value):
+    with pytest.raises(RouterProviderError):
+        run(prediction(scenario, slots={scenario: [{"name": name, "value": value}]}), catalog)
+
+
+def test_normalized_slots_and_relative_date_result(catalog):
+    trace, _, _ = run(prediction("SC30", slots={"SC30": [
+        {"name": "payment_date", "value": "2026-09-30"},
+        {"name": "phone", "value": "+77011234567"},
+    ]}), catalog, text="Оплатил вчера, полиса нет")
+    assert trace.result.decision.slots[0].value == "2026-09-30"
+    # The mock checks normalized-value handling, not model extraction quality.

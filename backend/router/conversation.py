@@ -51,7 +51,8 @@ def transition_topics(
                     raise ValueError("Ambiguous existing topic; explicit target required")
                 topic = matches[0] if matches else None
         if topic is None:
-            if index == 0 and requested_operation in {"continue", "resume"}:
+            # An urgent NEW intent can precede a resumed secondary topic after sorting.
+            if index == 0 and requested_operation in {"continue", "resume"} and target is None:
                 raise ValueError("Continuation requires an existing matching topic")
             topic = Topic(topic_id=str(uuid4()), scenario_id=intent.scenario_id, status="parked")
             topics.append(topic)
