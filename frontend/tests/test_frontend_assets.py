@@ -10,6 +10,7 @@ ROOT_DIR = FRONTEND_DIR.parent
 
 def test_frontend_files_exist():
     assert (FRONTEND_DIR / "index.html").is_file()
+    assert (SRC_DIR / "favicon.svg").is_file()
     assert (SRC_DIR / "api.js").is_file()
     assert (SRC_DIR / "app.js").is_file()
     assert (SRC_DIR / "audio.js").is_file()
