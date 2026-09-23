@@ -1,0 +1,49 @@
+"""Private Structured Output models returned by the routing LLM.
+
+These models deliberately stay inside backend.router: the public wire contract lives
+in contracts/models.py and is owned by the integration workstream.
+"""
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class ModelOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class RoutedScenario(ModelOutput):
+    scenario_id: str = Field(description="Exact SCxx or SYS_* id from the catalog")
+    reason: str = Field(min_length=1, max_length=240)
+
+
+class RoutedAlternative(ModelOutput):
+    scenario_id: str = Field(description="Unselected catalog id")
+    reason: str = Field(min_length=1, max_length=240)
+
+
+class ExtractedSlot(ModelOutput):
+    name: str = Field(min_length=1, max_length=80)
+    value: str = Field(min_length=1, max_length=300)
+
+
+class RouterModelOutput(ModelOutput):
+    scenarios: list[RoutedScenario] = Field(min_length=1, max_length=6)
+    alternatives: list[RoutedAlternative] = Field(default_factory=list, max_length=3)
+    language: Literal["ru", "kk", "mixed"]
+    certainty: Literal["high", "medium", "low"]
+    rationale: str = Field(min_length=1, max_length=400)
+    slots: list[ExtractedSlot] = Field(default_factory=list, max_length=20)
+    is_continuation: bool
+    topic_operation: Literal["create", "continue", "switch", "resume", "resolve", "none"]
+    clarification_question: str | None = Field(default=None, max_length=300)
+    requires_confirmation: bool
+
+    @model_validator(mode="after")
+    def validate_system_intents(self):
+        ids = [item.scenario_id for item in self.scenarios]
+        if len(ids) != len(set(ids)):
+            raise ValueError("selected scenario ids must be unique")
+        if "SYS_UNCLEAR" in ids and not self.clarification_question:
+            raise ValueError("SYS_UNCLEAR requires clarification_question")
+        return self
