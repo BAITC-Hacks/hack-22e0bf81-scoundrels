@@ -1,7 +1,7 @@
 # Handoff — роль 1
 
 Ветка: feat/voice
-Статус: этап 2 запушен (`2f03b2a`); этап 3 завершён локально и ещё не закоммичен.
+Статус: этап 3 запушен (`9ba345a`); этап 4 завершён локально и ещё не закоммичен.
 
 ## Что работает
 
@@ -27,9 +27,19 @@ Smoke включает RU, KK, RU/KK, EN и KK/EN/RU; подробный отч�
 части prompt, динамический разговор — после него; используется стабильный cache key.
 Отдельный holdout содержит новые RU/KK/mixed пограничные формулировки.
 
+Этап 4 добавил чистый topic reducer в conversation.py и подключил его через
+ScenarioRouter. Он копирует входное состояние, не использует globals, держит не более
+одной active темы, паркует switch/multi-intent, сливает slots, поднимает exact/related
+resume, возвращает parked тему после resolve и переводит active тему в transferred для SC37.
+SYS_UNCLEAR/OUT_OF_SCOPE сохраняют работу; SYS_GOODBYE закрывает active/parked темы.
+
+`python -m backend.router.evals.dialogs` последовательно replay-ит размеченные диалоги,
+не выполняя actions. CLI требует `--live`, ограничен 1..10 диалогами и поддерживает
+повторяемый `--dialog-id` для bounded диагностики.
+
 ## Проверки
 
-`python -m pytest -q`: 45 passed. Этап 2: 5 платных Router-вызовов.
+`python -m pytest -q`: 57 passed. Этап 2: 5 платных Router-вызовов.
 Каталог промпта: 43 карточки, 15 524 символа / 18 042 UTF-8 байта.
 
 Live gpt-6-luna: 5/5; 22 085 input tokens, 731 output tokens; оценка $0.005148.
@@ -43,11 +53,21 @@ Uncached-rate cost upper bound финального run: $0.114668; actual ни�
 За все tuning/eval прогоны этапа 3 tracked upper bounds около $0.36 плюс один failed
 request с неизвестным usage. Generated reports/predictions остаются в ignored artifacts/.
 
+Финальный multi-turn replay: 10/10 диалогов, 40/40 exact routes, 30/30 ожидаемых
+slot names, 40/40 language detection, 0 API errors, 0 topic invariant failures.
+Operations: create 10, continue 21, switch 2, resume 1, resolve 5, none 1.
+Cache hit 196 789 / 203 128 = 96.88%; latency p50 3317.2 ms, p95 5105.9 ms,
+max 6249.6 ms. Uncached-rate upper bound финального replay: $0.050061.
+Контрольный official dev на финальном prompt: 104/104 primary/full, multi-intent recall 1.0,
+все language/type slices 1.0, 0 API errors. Cache hit 99.17%; p50 3145.9 ms,
+p95 5311.2 ms; uncached-rate upper bound $0.121905.
+Все tuning/replay прогоны этапа 4: tracked upper bounds около $0.305; actual ниже.
+
 ## Что осталось
 
-См. ROADMAP.md. В начале этапа 4 закоммитить и запушить этап 3. Затем реализовать
-conversation state: active/parked/resume, slots и urgent interruption. Router latency
-ещё не соответствует ориентиру 500 ms; не выдавать backend latency за end-to-audio.
+См. ROADMAP.md. В начале этапа 5 закоммитить и запушить этап 4. Затем реализовать
+OpenAI STT adapter в backend/voice с injectable client и bounded live audio smoke.
+Router latency всё ещё не соответствует ориентиру 500 ms; не выдавать его за end-to-audio.
 
 ## Запросы к другим ролям
 

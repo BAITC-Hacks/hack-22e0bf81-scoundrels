@@ -19,7 +19,7 @@ usage-отчёт, predictions.json. Сначала 3–5 реплик RU/KK/mixe
 22 085 input + 731 output tokens, оценка $0.005148. Router latency:
 min 2.414 s, median 3.766 s, max 5.562 s. Точность хорошая, скорость требует работы.
 
-## Этап 3 — оценка 104 реплик и настройка маршрутизации ✅ (локально)
+## Этап 3 — оценка 104 реплик и настройка маршрутизации ✅
 
 Этап 2 закоммичен и отправлен (`2f03b2a`). Добавлены официальный bounded evaluator,
 checkpoint/resume, predictions.json, usage/cache/latency/error отчёт и synthetic holdout.
@@ -28,15 +28,25 @@ checkpoint/resume, predictions.json, usage/cache/latency/error отчёт и syn
 Финальный gpt-6-luna dev-run: 103/104 (primary/full 0.9904), multi-intent recall 1.0,
 RU 52/52, KK 45/45, mixed 6/7; holdout 5/5. Prompt cache hit 99.09%.
 Router p50 3.043 s, p95 4.709 s: качество высокое, latency всё ещё существенно выше цели.
-Этап 3 по договорённости коммитится и пушится в начале этапа 4.
+Этап 3 закоммичен и отправлен (`9ba345a`).
 
-## Этап 4 — состояние разговора
+## Этап 4 — состояние разговора ✅ (локально)
 
 Active/parked/resolved topics, slots, continuation/switch/resume, urgent interruption,
 SYS_UNCLEAR и повторный отказ → handoff. Прогон dialogs_sample.json.
 
+Добавлен чистый session-local reducer без globals: один active topic, очередь parked,
+merge слотов, related/exact resume, resolve, urgent interruption и transferred handoff.
+ScenarioRouter применяет reducer после провайдера; платформа по-прежнему владеет хранением.
+
+Финальный live replay gpt-6-luna: 10/10 диалогов, 40/40 routes, 30/30 ожидаемых
+slot names, 40/40 language detection, 0 API/state errors. Cache hit 96.88%; router
+p50 3.317 s, p95 5.106 s. Финальная single-turn regression текущего prompt:
+104/104 по неизменённому official evaluate.py. Этап 4 коммитится и пушится в начале этапа 5.
+
 ## Этап 5 — STT адаптер
 
+В начале этапа сначала commit + push этапа 4. Затем:
 Injectable OpenAI client, форматы/таймауты/usage, offline tests; затем ограниченный
 live smoke на русском, казахском и смешанной речи. Ошибки STT отдельно от routing.
 

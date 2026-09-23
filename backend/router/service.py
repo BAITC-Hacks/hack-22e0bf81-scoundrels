@@ -2,6 +2,7 @@
 from typing import Protocol
 
 from contracts.models import Decision, RouteResult, RouterContext, Scenario
+from backend.router.conversation import advance_conversation
 
 
 class RouterProvider(Protocol):
@@ -14,7 +15,8 @@ class ScenarioRouter:
 
     async def route(self, context: RouterContext, catalog: list[Scenario]) -> RouteResult:
         if self.provider is not None:
-            return await self.provider.route(context, catalog)
+            result = await self.provider.route(context, catalog)
+            return advance_conversation(context, result, catalog)
         # Intentional scaffold: no classifier, no fake LLM, no test-phrase mapping.
         question = "Какой вопрос вы хотите решить?"
         return RouteResult(

@@ -52,3 +52,10 @@ def test_stable_catalog_precedes_dynamic_turn_for_prompt_cache_reuse():
     assert "SC01" in instructions and "SYS_UNCLEAR" in instructions
     assert first_marker not in instructions and second_marker not in instructions
     assert first != second
+
+
+def test_prompt_defines_dataset_date_and_victim_claim_boundary():
+    instructions = build_router_instructions(official_catalog())
+    assert "2026-10-01" in instructions
+    assert "victim claim SC12" in instructions
+    assert "identifier previously stated" in instructions

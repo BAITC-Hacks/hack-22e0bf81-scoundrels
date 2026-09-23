@@ -98,6 +98,17 @@ def test_urgent_scenario_is_deterministically_first():
     assert result.decision.selected_scenario_id == "SC38"
 
 
+def test_explicit_human_request_precedes_normal_carried_intent():
+    parsed = output(scenarios=[
+        {"scenario_id": "SC35", "reason": "Existing complaint"},
+        {"scenario_id": "SC37", "reason": "User asks for a human"},
+    ])
+    client, _ = fake_client(parsed)
+    result = run(OpenAIRouterProvider(model="configured-model", client=client))
+    assert result.decision.scenario_ids == ["SC37", "SC35"]
+    assert result.decision.action == "transfer"
+
+
 def test_three_language_mix_is_preserved_in_detailed_result():
     parsed = output(language="mixed", language_components=["ru", "kk", "en"])
     client, _ = fake_client(parsed)

@@ -24,6 +24,12 @@ full match and multi-intent recall, with language/type breakdowns.
 # Full paid dev run (default is only 20; 104 must be explicit):
 .\.venv\Scripts\python.exe -m backend.router.evals.official --live --max-items 104 --concurrency 4
 
+# Sequential multi-turn replay. No business actions are executed:
+.\.venv\Scripts\python.exe -m backend.router.evals.dialogs --live --max-dialogs 10
+
+# Targeted dialog diagnosis (repeat --dialog-id as needed):
+.\.venv\Scripts\python.exe -m backend.router.evals.dialogs --live --dialog-id D03 --output artifacts\router-dialogs-d03.json
+
 # Unchanged organizer evaluator. -X utf8 avoids a Windows cp1251 print failure on Kazakh text:
 .\.venv\Scripts\python.exe -X utf8 case_2\voice_router_dataset\evaluate.py artifacts\predictions.json case_2\voice_router_dataset\dev_utterances.json
 ```
@@ -36,3 +42,13 @@ Verified 2026-09-23 with gpt-6-luna / reasoning low: 103/104 primary and full ma
 1.0 multi-intent recall, 5/5 synthetic holdout, no API errors. Router p50 3043.0 ms,
 p95 4708.9 ms. Cache hit was 99.09%; the final run's uncached-rate cost upper bound was
 $0.114668. Detailed records and generated predictions are ignored under artifacts/.
+
+Final multi-turn replay on the same model: 40/40 exact routes, 30/30 expected slot
+names, 40/40 detected languages, no API or topic-state errors. Prompt cache hit was
+96.88%; router p50 3317.2 ms and p95 5105.9 ms. The uncached-rate cost upper bound
+was $0.050061. The report is `artifacts/router-dialogs-report.json` and is ignored.
+
+After the multi-turn prompt changes, a clean regression run was confirmed by the unchanged
+official evaluator at 104/104 for primary/full match and 1.0 multi-intent recall. All RU,
+KK, mixed and type slices were 1.0. Cache hit was 99.17%; p50 was 3145.9 ms and p95
+5311.2 ms. The uncached-rate cost upper bound was $0.121905.

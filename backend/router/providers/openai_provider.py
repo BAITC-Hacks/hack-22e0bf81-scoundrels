@@ -118,9 +118,14 @@ class OpenAIRouterProvider:
         if unknown:
             raise RouterProviderError(f"model returned unknown scenario ids: {sorted(unknown)}")
 
-        # Urgency is deterministic policy; among equal priorities keep model/mention order.
+        # Urgency is deterministic policy. An explicit human request must not be hidden
+        # behind a carried-over normal intent, otherwise the transfer action would not run.
         urgent = [scenario_id for scenario_id in raw_ids if by_id[scenario_id].priority == "urgent"]
-        ordered_ids = urgent + [scenario_id for scenario_id in raw_ids if scenario_id not in urgent]
+        handoff = ["SC37"] if "SC37" in raw_ids and "SC37" not in urgent else []
+        ordered_ids = urgent + handoff + [
+            scenario_id for scenario_id in raw_ids
+            if scenario_id not in urgent and scenario_id not in handoff
+        ]
         primary = ordered_ids[0]
         clarification = "SYS_UNCLEAR" in ordered_ids
         transfer = primary == "SC37"

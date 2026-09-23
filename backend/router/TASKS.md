@@ -10,7 +10,7 @@
    таймаут, bounded output/retries, injectable client; настоящие LLM-решения.
 3. В service.py выбирать ordered scenario_ids: urgent first, остальные в порядке речи.
    Учитывать все 43 ID. Не отрезать нужный сценарий жёстким lexical top-k.
-4. conversation.py: продолжение, заполнение слотов, switch/park/resume, multi-intent.
+4. ✅ conversation.py: продолжение, заполнение слотов, switch/park/resume, multi-intent.
    Платформа хранит state; router возвращает новый state. Не разделять сессии через globals.
 5. SYS_UNCLEAR/OUT_OF_SCOPE/GOODBYE; короткое основание по границам сценариев,
    альтернативы, честная уверенность; никакого отображения hidden chain of thought.
@@ -34,9 +34,10 @@
 - [x] Прочитан контекст, запущен scaffold
 - [x] Первый offline-срез: schema + prompt + provider
 - [x] 104 dev-реплики оценены official evaluate.py; отчёт и holdout добавлены
+- [x] Topic reducer и 10 sample-dialogs / 40 client turns проверены
 - [ ] Основные задачи реализованы
 - [x] Текущие проверки пройдены, измеренные ограничения записаны
-- [x] Этап 2 запушен, HANDOFF.md обновлён; этап 3 ожидает commit в начале этапа 4
+- [x] Этап 3 запушен, HANDOFF.md обновлён; этап 4 ожидает commit в начале этапа 5
 
 ## Голос — тоже наша зона
 
