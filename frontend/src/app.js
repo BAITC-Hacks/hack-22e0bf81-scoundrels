@@ -2,7 +2,8 @@
  * RouteMap Frontend Application Controller.
  * Manages session lifecycle, push-to-talk recording, TTS playback,
  * turn limitation (10-turn limit), supervisor explainability,
- * latency waterfall tracking (p50/p95), and dataset/session replay.
+ * latency waterfall tracking (p50/p95), full bilingual localization (RU/KK),
+ * and dataset/session replay.
  */
 
 import { health, createSession, sendTurn, transcribeAudio, synthesizeSpeech, ApiError } from "./api.js";
@@ -39,7 +40,9 @@ const replyText = document.querySelector("#reply-text");
 const audioPlayerContainer = document.querySelector("#audio-player-container");
 const ttsAudioPlayer = document.querySelector("#tts-audio-player");
 
+const replayToolsHeading = document.querySelector("#replay-tools-heading");
 const exportSessionBtn = document.querySelector("#export-session-btn");
+const importSessionLabel = document.querySelector("#import-session-label");
 const importSessionInput = document.querySelector("#import-session-input");
 const datasetSampleSelect = document.querySelector("#dataset-sample-select");
 
@@ -63,6 +66,11 @@ let lastSpeechEndTimestamp = null;
 let showRawJson = false;
 let currentUiLang = "ru";
 
+// System status tracking for bilingual updates
+let currentConnectionStatus = "connecting"; // 'connecting' | 'online' | 'error' | 'unavailable'
+let currentNoticeType = "scaffold"; // 'scaffold' | 'live' | 'ready' | 'replay' | 'sample'
+let currentSampleTitle = "";
+
 /**
  * Updates interface text based on selected UI language
  * @param {'ru'|'kk'} lang
@@ -70,10 +78,14 @@ let currentUiLang = "ru";
 function applyLocalization(lang) {
   currentUiLang = lang;
   const dict = getLocale(lang);
+
+  // Brand and headers
   brandSub.textContent = dict.brandSub;
   brandDesc.textContent = dict.brandDesc;
   document.querySelector("#customer-heading").textContent = dict.customerHeading;
   document.querySelector("#supervisor-heading").textContent = dict.supervisorHeading;
+
+  // Form labels & buttons
   languageLabel.textContent = dict.languageLabel;
   textInput.placeholder = dict.inputPlaceholder;
   sendBtnLabel.textContent = dict.sendBtn;
@@ -81,6 +93,68 @@ function applyLocalization(lang) {
   resetBtnLabel.textContent = dict.resetBtn;
   replyHeading.textContent = dict.replyHeading;
   toggleJsonBtn.textContent = showRawJson ? dict.toggleStructure : dict.toggleJson;
+
+  // Replay tools section
+  if (replayToolsHeading) replayToolsHeading.textContent = dict.replayToolsHeading;
+  exportSessionBtn.textContent = dict.exportSession;
+  if (importSessionLabel) importSessionLabel.textContent = dict.importSession;
+
+  // Request Language Select Options (Auto, RU, KK, Mixed)
+  const langOpts = dict.requestLanguageOptions;
+  if (langOpts) {
+    Array.from(languageSelect.options).forEach((opt) => {
+      if (langOpts[opt.value]) {
+        opt.textContent = langOpts[opt.value];
+      }
+    });
+  }
+
+  // Dataset Sample Select Options
+  const sampleOpts = dict.datasetSampleOptions;
+  if (sampleOpts) {
+    Array.from(datasetSampleSelect.options).forEach((opt) => {
+      const key = opt.value || "default";
+      if (sampleOpts[key]) {
+        opt.textContent = sampleOpts[key];
+      }
+    });
+  }
+
+  // Connection status pill in the header
+  if (currentConnectionStatus === "connecting") {
+    statusBadge.textContent = dict.statusConnecting;
+  } else if (currentConnectionStatus === "online") {
+    statusBadge.textContent = dict.statusOnline;
+  } else if (currentConnectionStatus === "error") {
+    statusBadge.textContent = dict.statusError;
+  } else if (currentConnectionStatus === "unavailable") {
+    statusBadge.textContent = dict.statusUnavailable;
+  }
+
+  // Session ID label
+  if (currentSessionId) {
+    sessionInfo.textContent = dict.sessionLabel(currentSessionId.substring(0, 8));
+  } else {
+    sessionInfo.textContent = dict.sessionError;
+  }
+
+  // Notice banner
+  if (currentNoticeType === "scaffold") {
+    noticeText.textContent = dict.scaffoldNotice;
+  } else if (currentNoticeType === "live") {
+    noticeText.textContent = dict.liveNotice;
+  } else if (currentNoticeType === "ready") {
+    noticeText.textContent = dict.serverReadyNotice;
+  } else if (currentNoticeType === "replay") {
+    noticeText.textContent = dict.replayBanner;
+  } else if (currentNoticeType === "sample") {
+    noticeText.textContent = dict.datasetSampleBanner(currentSampleTitle);
+  }
+
+  // Waiting reply text if no turns sent yet
+  if (sessionHistory.length === 0) {
+    replyText.textContent = dict.waitingReply;
+  }
 
   updateTurnCounter();
 
@@ -151,8 +225,9 @@ async function initSession() {
   lastSpeechEndTimestamp = null;
   datasetSampleSelect.value = "";
 
+  const dict = getLocale(currentUiLang);
   updateTurnCounter();
-  replyText.textContent = getLocale(currentUiLang).waitingReply;
+  replyText.textContent = dict.waitingReply;
   audioPlayer.stop();
   audioPlayerContainer.hidden = true;
 
@@ -161,16 +236,22 @@ async function initSession() {
   rawJsonTrace.textContent = "";
 
   try {
+    currentConnectionStatus = "connecting";
+    statusBadge.className = "status-pill status-connecting";
+    statusBadge.textContent = dict.statusConnecting;
+
     const sessionData = await createSession();
     currentSessionId = sessionData.session_id;
-    sessionInfo.textContent = `Сессия: ${currentSessionId.substring(0, 8)}…`;
+    currentConnectionStatus = "online";
+    sessionInfo.textContent = dict.sessionLabel(currentSessionId.substring(0, 8));
     statusBadge.className = "status-pill status-online";
-    statusBadge.textContent = "Подключено";
+    statusBadge.textContent = dict.statusOnline;
   } catch (err) {
     currentSessionId = null;
-    sessionInfo.textContent = "Сессия: ошибка";
+    currentConnectionStatus = "error";
+    sessionInfo.textContent = dict.sessionError;
     statusBadge.className = "status-pill status-error";
-    statusBadge.textContent = "Сбой соединения";
+    statusBadge.textContent = dict.statusError;
     showError(err.message);
   } finally {
     setBusy(false);
@@ -186,8 +267,10 @@ async function initSession() {
 async function executeTurn(text, lang, speechEndMs = null) {
   if (!text || isBusy || !currentSessionId) return;
 
+  const dict = getLocale(currentUiLang);
+
   if (currentTurnCount >= MAX_TURNS) {
-    showError(getLocale(currentUiLang).turnLimitError);
+    showError(dict.turnLimitError);
     return;
   }
 
@@ -242,18 +325,20 @@ async function executeTurn(text, lang, speechEndMs = null) {
 
     // 5. Update server mode indicator
     if (result.mode === "scaffold") {
+      currentNoticeType = "scaffold";
       noticeBanner.className = "banner banner-scaffold";
-      noticeText.textContent = getLocale(currentUiLang).scaffoldNotice;
+      noticeText.textContent = dict.scaffoldNotice;
     } else {
+      currentNoticeType = "live";
       noticeBanner.className = "banner banner-online";
-      noticeText.textContent = getLocale(currentUiLang).liveNotice;
+      noticeText.textContent = dict.liveNotice;
     }
 
   } catch (err) {
     if (err instanceof ApiError && err.isTurnLimitReached) {
       currentTurnCount = MAX_TURNS;
       updateTurnCounter();
-      showError("Сервер отклонил запрос: исчерпан лимит 10 реплик (409 Conflict).");
+      showError(dict.serverConflictError);
     } else {
       showError(err.message);
     }
@@ -278,36 +363,47 @@ async function handleTextSubmit(event) {
 // Audio & Push-To-Talk Setup
 // ----------------------------------------------------
 voiceRecorder.onStateChange = (state) => {
+  const dict = getLocale(currentUiLang);
   if (state === "recording") {
     micBtn.classList.add("recording");
-    micLabel.textContent = getLocale(currentUiLang).micRecording;
+    micLabel.textContent = dict.micRecording;
   } else if (state === "processing") {
     micBtn.classList.remove("recording");
-    micLabel.textContent = getLocale(currentUiLang).micProcessing;
+    micLabel.textContent = dict.micProcessing;
   } else {
     micBtn.classList.remove("recording");
-    micLabel.textContent = getLocale(currentUiLang).micBtn;
+    micLabel.textContent = dict.micBtn;
   }
 };
 
 voiceRecorder.onError = (err) => {
-  showError(err.message);
+  const dict = getLocale(currentUiLang);
+  let msg = dict.micGenericError(err.message);
+  if (err.code === "denied") {
+    msg = dict.micDeniedError;
+  } else if (err.code === "not_found") {
+    msg = dict.micNotFoundError;
+  } else if (err.code === "unsupported") {
+    msg = dict.micUnsupportedError;
+  }
+  showError(msg);
 };
 
 voiceRecorder.onAudioReady = async (audioBlob, stopTimestamp) => {
   lastSpeechEndTimestamp = stopTimestamp;
   setBusy(true);
+  const dict = getLocale(currentUiLang);
   try {
     const transcriptResult = await transcribeAudio(audioBlob);
     if (transcriptResult.text) {
       textInput.value = transcriptResult.text;
       await executeTurn(transcriptResult.text, transcriptResult.language || languageSelect.value, stopTimestamp);
     } else {
-      showError("Речь не распознана или была пустой. Попробуйте снова или введите текст.");
+      showError(dict.sttEmptyError);
     }
   } catch (err) {
     if (err instanceof ApiError && err.isNotImplemented) {
-      showError("Голосовой ввод (STT) честно возвращает HTTP 501 в scaffold-режиме. Используйте текстовый ввод.");
+      showError(dict.sttScaffoldError);
     } else {
       showError(`Ошибка STT: ${err.message}`);
     }
@@ -350,10 +446,12 @@ importSessionInput.addEventListener("change", async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
 
+  const dict = getLocale(currentUiLang);
+
   try {
     const loadedTurns = await parseSessionFile(file);
     if (loadedTurns.length === 0) {
-      showError("Файл не содержит записей ходов.");
+      showError(dict.emptyHistoryError);
       return;
     }
     sessionHistory = loadedTurns;
@@ -367,11 +465,12 @@ importSessionInput.addEventListener("change", async (e) => {
     renderMetricsPanel(metricsContainer, last.timings, sessionTracker, currentUiLang);
     rawJsonTrace.textContent = JSON.stringify(last, null, 2);
 
+    currentNoticeType = "replay";
     noticeBanner.className = "banner banner-scaffold";
-    noticeText.textContent = "Режим Replay: отображается ранее сохраненная сессия.";
+    noticeText.textContent = dict.replayBanner;
     exportSessionBtn.disabled = false;
   } catch (err) {
-    showError(`Ошибка чтения файла сессии: ${err.message}`);
+    showError(dict.fileReadError(err.message));
   } finally {
     importSessionInput.value = "";
   }
@@ -384,14 +483,17 @@ datasetSampleSelect.addEventListener("change", (e) => {
   const found = DATASET_SAMPLES.find((s) => s.id === selectedId);
   if (!found) return;
 
+  const dict = getLocale(currentUiLang);
   const lastTurn = found.turns[found.turns.length - 1];
   replyText.textContent = lastTurn.assistant_text;
   renderSupervisorPanel(supervisorTrace, lastTurn, currentUiLang);
   renderMetricsPanel(metricsContainer, lastTurn.timings, sessionTracker, currentUiLang);
   rawJsonTrace.textContent = JSON.stringify(found, null, 2);
 
+  currentNoticeType = "sample";
+  currentSampleTitle = found.title;
   noticeBanner.className = "banner banner-scaffold";
-  noticeText.textContent = `Образец из датасета (${found.title}) · Без вызова LLM.`;
+  noticeText.textContent = dict.datasetSampleBanner(found.title);
 });
 
 // UI Language Switch
@@ -415,16 +517,19 @@ resetBtn.addEventListener("click", initSession);
 // Bootstrap
 (async function bootstrap() {
   applyLocalization("ru");
+  const dict = getLocale("ru");
   try {
     const healthData = await health();
     if (healthData.capabilities && healthData.capabilities.routing) {
+      currentNoticeType = "ready";
       noticeBanner.className = "banner banner-online";
-      noticeText.textContent = "Сервер готов: маршрутизация активна.";
+      noticeText.textContent = dict.serverReadyNotice;
     }
     await initSession();
   } catch (err) {
+    currentConnectionStatus = "unavailable";
     statusBadge.className = "status-pill status-error";
-    statusBadge.textContent = "Сервер недоступен";
-    showError(`Сервер недоступен: ${err.message}. Запустите сервер: python run.py`);
+    statusBadge.textContent = dict.statusUnavailable;
+    showError(dict.serverUnavailableHint(err.message));
   }
 })();

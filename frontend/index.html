@@ -97,13 +97,13 @@
 
       <!-- Дополнительные инструменты: Replay и образцы датасета -->
       <div class="demo-tools-box">
-        <div class="sub-heading">Инструменты Replay и образцы</div>
+        <div id="replay-tools-heading" class="sub-heading">Инструменты Replay и образцы</div>
         <div class="demo-actions-row">
           <button id="export-session-btn" type="button" class="btn btn-secondary btn-sm" disabled>
             💾 Экспорт сессии
           </button>
           <label class="btn btn-secondary btn-sm file-input-label">
-            📂 Загрузить Replay
+            <span id="import-session-label">📂 Загрузить Replay</span>
             <input id="import-session-input" type="file" accept=".json" hidden>
           </label>
           <select id="dataset-sample-select" class="sample-select">

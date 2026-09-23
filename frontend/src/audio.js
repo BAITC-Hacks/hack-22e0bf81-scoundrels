@@ -46,6 +46,7 @@ export class VoiceRecorder {
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       const err = new Error("Запись аудио не поддерживается данным браузером (getUserMedia недоступен)");
+      err.code = "unsupported";
       if (this.onError) this.onError(err);
       throw err;
     }
@@ -96,15 +97,21 @@ export class VoiceRecorder {
       if (this.onStateChange) this.onStateChange("idle");
       
       let userMessage = "Ошибка доступа к микрофону";
+      let code = "generic";
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
         userMessage = "Доступ к микрофону отклонен пользователем или политикой браузера.";
+        code = "denied";
       } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
         userMessage = "Микрофон не обнаружен на устройстве.";
+        code = "not_found";
       } else {
         userMessage = `Сбой записи звука: ${err.message}`;
+        code = "generic";
       }
 
       const friendlyError = new Error(userMessage);
+      friendlyError.code = code;
+      friendlyError.originalError = err;
       if (this.onError) this.onError(friendlyError);
       throw friendlyError;
     }
