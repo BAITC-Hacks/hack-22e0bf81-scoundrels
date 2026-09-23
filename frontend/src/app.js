@@ -51,6 +51,10 @@ const supervisorTrace = document.querySelector("#supervisor-trace");
 const rawJsonTrace = document.querySelector("#raw-json-trace");
 const toggleJsonBtn = document.querySelector("#toggle-json-btn");
 
+const themeToggleBtn = document.querySelector("#theme-toggle-btn");
+const themeIcon = document.querySelector("#theme-icon");
+const themeLabel = document.querySelector("#theme-label");
+
 // Subsystems
 const voiceRecorder = new VoiceRecorder();
 const audioPlayer = new AudioPlayer(ttsAudioPlayer);
@@ -65,11 +69,30 @@ let sessionHistory = [];
 let lastSpeechEndTimestamp = null;
 let showRawJson = false;
 let currentUiLang = "ru";
+let currentTheme = localStorage.getItem("routemap_theme") || "dark";
 
 // System status tracking for bilingual updates
 let currentConnectionStatus = "connecting"; // 'connecting' | 'online' | 'error' | 'unavailable'
 let currentNoticeType = "scaffold"; // 'scaffold' | 'live' | 'ready' | 'replay' | 'sample'
 let currentSampleTitle = "";
+
+/**
+ * Sets active theme (dark or light)
+ * @param {'dark'|'light'} theme
+ */
+function applyTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute("data-theme", theme);
+  try {
+    localStorage.setItem("routemap_theme", theme);
+  } catch {
+    // ignore storage restrictions
+  }
+  const dict = getLocale(currentUiLang);
+  if (themeIcon) themeIcon.textContent = theme === "dark" ? "🌙" : "☀️";
+  if (themeLabel) themeLabel.textContent = theme === "dark" ? dict.themeDark : dict.themeLight;
+  if (themeToggleBtn) themeToggleBtn.title = dict.themeToggleTitle;
+}
 
 /**
  * Updates interface text based on selected UI language
@@ -155,6 +178,11 @@ function applyLocalization(lang) {
   if (sessionHistory.length === 0) {
     replyText.textContent = dict.waitingReply;
   }
+
+  // Theme button label and title
+  if (themeIcon) themeIcon.textContent = currentTheme === "dark" ? "🌙" : "☀️";
+  if (themeLabel) themeLabel.textContent = currentTheme === "dark" ? dict.themeDark : dict.themeLight;
+  if (themeToggleBtn) themeToggleBtn.title = dict.themeToggleTitle;
 
   updateTurnCounter();
 
@@ -501,6 +529,13 @@ uiLangSelect.addEventListener("change", (e) => {
   applyLocalization(e.target.value);
 });
 
+// Theme Toggle Button
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener("click", () => {
+    applyTheme(currentTheme === "dark" ? "light" : "dark");
+  });
+}
+
 // Toggle Raw JSON
 toggleJsonBtn.addEventListener("click", () => {
   showRawJson = !showRawJson;
@@ -516,6 +551,7 @@ resetBtn.addEventListener("click", initSession);
 
 // Bootstrap
 (async function bootstrap() {
+  applyTheme(currentTheme);
   applyLocalization("ru");
   const dict = getLocale("ru");
   try {

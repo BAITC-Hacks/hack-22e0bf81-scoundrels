@@ -27,6 +27,9 @@ export const I18N = {
     toggleStructure: "Показать структуру",
     exportSession: "💾 Экспорт сессии",
     importSession: "📂 Загрузить Replay",
+    themeDark: "Тёмная",
+    themeLight: "Светлая",
+    themeToggleTitle: "Переключить тему",
     
     // Status badges
     statusConnecting: "Подключение…",
@@ -93,6 +96,9 @@ export const I18N = {
     toggleStructure: "Құрылымды көрсету",
     exportSession: "💾 Сессияны экспорттау",
     importSession: "📂 Replay жүктеу",
+    themeDark: "Күңгірт",
+    themeLight: "Жарық",
+    themeToggleTitle: "Тақырыпты ауыстыру",
 
     // Status badges
     statusConnecting: "Қосылуда…",

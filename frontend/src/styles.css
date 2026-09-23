@@ -3,28 +3,63 @@
  * Modern dark-mode UI with high contrast, glassmorphism, and clear hierarchy.
  */
 
-:root {
-  --bg-main: #0b1423;
-  --bg-panel: #131f33;
-  --bg-card: #182840;
-  --bg-input: #0e1827;
-  --border-color: #273950;
-  --border-focus: #5294e2;
+/* ==========================================================
+   THEME TOKENS: Dark (#282828) & Light (#ffffff)
+   Bank Colors: #008265 (Emerald Green) & #E59800 (Halyk Gold)
+   ========================================================== */
 
-  --text-main: #eaf1fa;
-  --text-muted: #8fa2bd;
-  --text-dim: #5c6f88;
+:root, [data-theme="dark"] {
+  --bg-main: #282828;
+  --bg-panel: #313131;
+  --bg-card: #3b3b3b;
+  --bg-input: #1f1f1f;
+  --border-color: #484848;
+  --border-focus: #008265;
 
-  --accent-cyan: #79dac5;
-  --accent-emerald: #00a884;
-  --accent-amber: #e8c687;
+  --text-main: #f5f5f5;
+  --text-muted: #b8b8b8;
+  --text-dim: #848484;
+
+  --bank-primary: #008265;
+  --bank-secondary: #E59800;
+
+  --accent-cyan: #3fd1b1;
+  --accent-emerald: #008265;
+  --accent-amber: #E59800;
   --accent-red: #f87171;
   --accent-blue: #60a5fa;
 
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
-  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] {
+  --bg-main: #ffffff;
+  --bg-panel: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-input: #f1f5f9;
+  --border-color: #008265;
+  --border-focus: #008265;
+
+  --text-main: #0f172a;
+  --text-muted: #334155;
+  --text-dim: #64748b;
+
+  --bank-primary: #008265;
+  --bank-secondary: #E59800;
+
+  --accent-cyan: #008265;
+  --accent-emerald: #008265;
+  --accent-amber: #E59800;
+  --accent-red: #dc2626;
+  --accent-blue: #2563eb;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-card: 0 4px 20px rgba(0, 130, 101, 0.12);
 }
 
 * {
@@ -96,7 +131,7 @@ body {
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -109,6 +144,31 @@ body {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: border-color 0.2s;
+}
+.ui-lang-switch select:focus {
+  outline: none;
+  border-color: var(--bank-primary);
+}
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.theme-toggle-btn:hover {
+  border-color: #E59800;
+  color: #E59800;
+  background: rgba(229, 152, 0, 0.12);
 }
 
 .system-status {
@@ -297,11 +357,13 @@ body {
 }
 
 .btn-primary {
-  background: var(--accent-cyan);
-  color: #08111e;
+  background: var(--bank-primary);
+  color: #ffffff;
 }
 .btn-primary:hover:not(:disabled) {
-  background: #6cd1bc;
+  background: #E59800;
+  color: #1a1a1a;
+  box-shadow: 0 2px 10px rgba(229, 152, 0, 0.35);
 }
 
 .btn-mic {
@@ -310,8 +372,9 @@ body {
   border: 1px solid var(--border-color);
 }
 .btn-mic:hover:not(:disabled) {
-  background: #20334f;
-  border-color: var(--accent-cyan);
+  background: rgba(229, 152, 0, 0.12);
+  border-color: #E59800;
+  color: #E59800;
 }
 .btn-mic.recording {
   background: rgba(248, 113, 113, 0.25);
@@ -332,8 +395,9 @@ body {
   border: 1px solid var(--border-color);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: var(--bg-card);
-  color: var(--text-main);
+  background: rgba(229, 152, 0, 0.12);
+  border-color: #E59800;
+  color: #E59800;
 }
 
 .btn-ghost {
@@ -342,8 +406,8 @@ body {
   padding: 6px 10px;
 }
 .btn-ghost:hover {
-  color: var(--text-main);
-  background: var(--bg-card);
+  color: #E59800;
+  background: rgba(229, 152, 0, 0.12);
 }
 .btn-sm {
   font-size: 12px;
@@ -748,3 +812,43 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================
+   LIGHT THEME ENHANCEMENTS: Crisp Bank Green (#008265) Borders
+   ========================================================== */
+[data-theme="light"] .app-header {
+  border-bottom: 2px solid #008265;
+}
+
+[data-theme="light"] .panel {
+  border: 2px solid #008265;
+  box-shadow: 0 4px 20px rgba(0, 130, 101, 0.15);
+}
+
+[data-theme="light"] .panel-header {
+  border-bottom: 2px solid rgba(0, 130, 101, 0.25);
+}
+
+[data-theme="light"] .trace-card,
+[data-theme="light"] .chat-bubble,
+[data-theme="light"] .demo-tools-box,
+[data-theme="light"] .supervisor-empty {
+  border: 1.5px solid #008265;
+}
+
+[data-theme="light"] .chat-bubble::before {
+  border-bottom-color: #008265;
+}
+
+[data-theme="light"] .app-footer {
+  border-top: 2px solid #008265;
+}
+
+[data-theme="light"] .metric-box {
+  border: 1.5px solid rgba(0, 130, 101, 0.5);
+}
+
+[data-theme="light"] .topic-item {
+  border: 1.5px solid rgba(0, 130, 101, 0.4);
+}
+
