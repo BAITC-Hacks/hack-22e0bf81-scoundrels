@@ -68,7 +68,8 @@ def test_provider_uses_responses_structured_output_without_storage():
     seen_usage = []
     provider = OpenAIRouterProvider(
         model="configured-model", client=client, timeout_seconds=3,
-        max_output_tokens=500, usage_callback=seen_usage.append,
+        max_output_tokens=500, prompt_cache_key="saqta-router-v1",
+        usage_callback=seen_usage.append,
     )
     result = run(provider)
     call = calls.calls[0]
@@ -77,6 +78,9 @@ def test_provider_uses_responses_structured_output_without_storage():
     assert call["store"] is False
     assert call["timeout"] == 3
     assert call["max_output_tokens"] == 500
+    assert call["prompt_cache_key"] == "saqta-router-v1"
+    assert "SC01" in call["instructions"]
+    assert '"catalog"' not in call["input"]
     assert result.decision.scenario_ids == ["SC30"]
     assert result.decision.selected_scenario_id == "SC30"
     assert result.decision.slots[0].name == "payment_date"

@@ -16,6 +16,7 @@ from contracts.models import RouterContext
 
 ROOT = Path(__file__).resolve().parents[3]
 SMOKE_PATH = Path(__file__).with_name("smoke_utterances.json")
+HOLDOUT_PATH = Path(__file__).with_name("holdout_utterances.json")
 CATALOG_PATH = ROOT / "case_2/voice_router_dataset/scenarios.json"
 
 
@@ -29,6 +30,7 @@ class LiveSettings(BaseSettings):
 def parse_args(argv: list[str] | None = None):
     parser = argparse.ArgumentParser(description="Run a bounded paid router smoke test")
     parser.add_argument("--live", action="store_true", help="required to allow API calls")
+    parser.add_argument("--suite", choices=("smoke", "holdout"), default="smoke")
     parser.add_argument("--max-items", type=int, default=5, choices=range(1, 6))
     parser.add_argument(
         "--output", type=Path, default=ROOT / "artifacts/router-smoke.json",
@@ -70,12 +72,14 @@ async def run_live(args, settings: LiveSettings) -> tuple[dict, bool]:
     if not settings.openai_router_model:
         raise SystemExit("OPENAI_ROUTER_MODEL is missing from .env")
 
-    suite = json.loads(SMOKE_PATH.read_text(encoding="utf-8"))["utterances"][:args.max_items]
+    suite_path = SMOKE_PATH if args.suite == "smoke" else HOLDOUT_PATH
+    suite = json.loads(suite_path.read_text(encoding="utf-8"))["utterances"][:args.max_items]
     catalog = load_catalog(CATALOG_PATH)
     provider = OpenAIRouterProvider(
         model=settings.openai_router_model,
         api_key=settings.openai_api_key.get_secret_value(),
         reasoning_effort=settings.openai_router_reasoning_effort,
+        prompt_cache_key="saqta-router-v1",
     )
     records = []
     predictions = {}
@@ -116,7 +120,7 @@ async def run_live(args, settings: LiveSettings) -> tuple[dict, bool]:
             })
 
     report = {
-        "suite": "router-smoke-v1", "model": settings.openai_router_model,
+        "suite": f"router-{args.suite}-v1", "model": settings.openai_router_model,
         "reasoning_effort": settings.openai_router_reasoning_effort,
         "count": len(records), "passed": sum(record["passed"] for record in records),
         "all_passed": all_passed, "input_tokens": input_tokens,

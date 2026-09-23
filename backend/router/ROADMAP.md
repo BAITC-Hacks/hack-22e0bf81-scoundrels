@@ -19,11 +19,16 @@ usage-отчёт, predictions.json. Сначала 3–5 реплик RU/KK/mixe
 22 085 input + 731 output tokens, оценка $0.005148. Router latency:
 min 2.414 s, median 3.766 s, max 5.562 s. Точность хорошая, скорость требует работы.
 
-## Этап 3 — оценка 104 реплик и настройка маршрутизации
+## Этап 3 — оценка 104 реплик и настройка маршрутизации ✅ (локально)
 
-В начале этапа сначала commit + push этапа 2. Затем официальный evaluate.py,
-разрезы RU/KK/EN/mixed/multi-intent, разбор ошибок,
-изменение промпта только по общим причинам. Отдельный synthetic holdout против переобучения.
+Этап 2 закоммичен и отправлен (`2f03b2a`). Добавлены официальный bounded evaluator,
+checkpoint/resume, predictions.json, usage/cache/latency/error отчёт и synthetic holdout.
+Стабильный каталог вынесен перед динамическим turn для prompt cache.
+
+Финальный gpt-6-luna dev-run: 103/104 (primary/full 0.9904), multi-intent recall 1.0,
+RU 52/52, KK 45/45, mixed 6/7; holdout 5/5. Prompt cache hit 99.09%.
+Router p50 3.043 s, p95 4.709 s: качество высокое, latency всё ещё существенно выше цели.
+Этап 3 по договорённости коммитится и пушится в начале этапа 4.
 
 ## Этап 4 — состояние разговора
 

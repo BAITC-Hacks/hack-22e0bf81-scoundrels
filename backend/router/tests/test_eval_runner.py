@@ -20,6 +20,12 @@ def test_smoke_run_is_hard_limited_to_five_items():
         parse_args(["--live", "--max-items", "6"])
 
 
+def test_eval_suite_is_explicitly_limited_to_known_local_sets():
+    assert parse_args(["--suite", "holdout"]).suite == "holdout"
+    with pytest.raises(SystemExit):
+        parse_args(["--suite", "dev"])
+
+
 def test_current_known_price_estimate_is_transparent():
     estimate = estimate_cost("gpt-6-luna", 1_000_000, 1_000_000)
     assert estimate["usd"] == 1.2

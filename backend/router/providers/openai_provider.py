@@ -11,7 +11,7 @@ from openai import AsyncOpenAI
 
 from contracts.models import Alternative, Decision, RouteResult, RouterContext, Scenario, Slot
 from backend.router.models import RouterModelOutput
-from backend.router.prompting import SYSTEM_INSTRUCTIONS, build_turn_input
+from backend.router.prompting import build_router_instructions, build_turn_input
 
 
 class RouterProviderError(RuntimeError):
@@ -40,6 +40,7 @@ class OpenAIRouterProvider:
         timeout_seconds: float = 8.0,
         max_output_tokens: int = 900,
         reasoning_effort: str | None = None,
+        prompt_cache_key: str | None = None,
         usage_callback: Callable[[Any], None] | None = None,
     ):
         if not model or not model.strip():
@@ -55,6 +56,7 @@ class OpenAIRouterProvider:
         self.timeout_seconds = timeout_seconds
         self.max_output_tokens = max_output_tokens
         self.reasoning_effort = reasoning_effort
+        self.prompt_cache_key = prompt_cache_key
         self.usage_callback = usage_callback
         # One SDK retry means at most two paid attempts. The budget guard may later set zero.
         self.client = client or AsyncOpenAI(api_key=api_key, max_retries=1)
@@ -68,8 +70,8 @@ class OpenAIRouterProvider:
         try:
             request = dict(
                 model=self.model,
-                instructions=SYSTEM_INSTRUCTIONS,
-                input=build_turn_input(context, catalog),
+                instructions=build_router_instructions(catalog),
+                input=build_turn_input(context),
                 text_format=RouterModelOutput,
                 max_output_tokens=self.max_output_tokens,
                 store=False,
@@ -77,6 +79,8 @@ class OpenAIRouterProvider:
             )
             if self.reasoning_effort:
                 request["reasoning"] = {"effort": self.reasoning_effort}
+            if self.prompt_cache_key:
+                request["prompt_cache_key"] = self.prompt_cache_key
             response = await self.client.responses.parse(**request)
         except Exception as exc:
             raise RouterProviderError("OpenAI routing request failed") from exc
