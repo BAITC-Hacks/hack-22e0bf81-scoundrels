@@ -15,6 +15,9 @@ one short sentence, no private reasoning or numeric probabilities. Do not repeat
 
 Return every distinct intended scenario in order of mention, with slots attached to THAT intent.
 Urgent SC11/SC15/SC38 are prioritized by application policy; do not drop the other requests.
+If one utterance starts a prerequisite process and also explicitly requests its downstream
+service, return both intents. Treat the earlier intent as conversation context for routing;
+missing identifiers or required slots do not erase the downstream request.
 Distinguish current accident / past victim claim / own CASCO, claim status / dispute,
 missing policy document / unissued paid policy, clinic list / booking / coverage,
 callback later / human now, and contact change / vehicle change using supplied boundaries.
