@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>RouteMap — проверка скорости озвучки</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{font:16px system-ui;max-width:920px;margin:40px auto;padding:0 20px;background:#f4f7f7;color:#142b2b}
+button,select{font:inherit;padding:10px;margin:8px 8px 16px 0}table{border-collapse:collapse;width:100%;background:white}
+td,th{padding:12px;text-align:left;border:1px solid #cbd5d5}pre{white-space:pre-wrap}audio{width:100%}
+</style>
+<h1>Проверка скорости озвучки</h1>
+<p>Один запуск — 2 платных TTS-запроса с одинаковым тестовым текстом: полная загрузка и поток.
+Измеряется событие <code>playing</code> в браузере. Это проверка TTS, без STT и LLM.</p>
+<label for="language">Язык</label>
+<select id="language"><option value="ru">Русский</option><option value="kk">Қазақша</option><option value="en">English</option></select>
+<button id="run">Сравнить два режима</button>
+<p id="status" role="status">Готово к проверке</p>
+<audio id="audio" controls></audio>
+<p>Воспроизводится синтезированная AI-речь.</p>
+<table><thead><tr><th>Режим</th><th>Начало звука, мс</th><th>Загрузка завершена, мс</th><th>Звук до конца загрузки</th></tr></thead><tbody id="results"></tbody></table>
+<pre id="report"></pre>
+<p><a href="/">Вернуться к RouteMap</a></p>
+<script type="module" src="/static/performance.js"></script>
+</html>

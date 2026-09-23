@@ -1,12 +1,14 @@
 """FastAPI composition for the safe scaffold and bounded live demo."""
 
 import asyncio
+from contextlib import AsyncExitStack
 from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from anyio import CancelScope
 
 from contracts.models import (
     RouterContext, SessionCreated, SpeechRequest, Timings, Transcript,
@@ -30,6 +32,21 @@ ALLOWED_AUDIO_TYPES = {
 }
 
 
+class ManagedSpeechResponse(StreamingResponse):
+    """Release upstream stream and paid semaphore even if ASGI disconnects before iteration."""
+
+    def __init__(self, *args, resources: AsyncExitStack, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.resources = resources
+
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            with CancelScope(shield=True):
+                await self.resources.aclose()
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     app = FastAPI(title="RouteMap · Voice Router", version="0.2.0")
@@ -47,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             model=settings.openai_router_model, api_key=key, timeout_seconds=12,
             max_output_tokens=600, reasoning_effort=settings.openai_router_reasoning_effort,
             prompt_cache_key="saqta-router-v1",
+            compact_output=settings.openai_router_compact_output,
         )
         app.state.router = ScenarioRouter(provider=provider)
         app.state.stt = OpenAITranscriber(model=settings.openai_stt_model, api_key=key)
@@ -180,6 +198,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "X-TTS-First-Byte-Ms": str(result.tts_first_byte_ms),
                 "X-TTS-Total-Ms": str(result.tts_total_ms),
             },
+        )
+
+    @app.post("/api/voice/synthesize/stream", responses={200: {"content": {"audio/mpeg": {}}}})
+    async def synthesize_stream(payload: SpeechRequest, session_id: str | None = Header(None, alias="X-Session-ID")):
+        if settings.app_mode != "live":
+            raise HTTPException(501, "TTS is disabled in scaffold mode")
+        if len(payload.text) > 500:
+            raise HTTPException(422, "Demo speech is limited to 500 characters")
+        resources = AsyncExitStack()
+        try:
+            await resources.enter_async_context(app.state.paid_slots)
+            await app.state.budget.reserve("tts", session_id=session_id)
+            stream = await resources.enter_async_context(
+                app.state.tts.stream(payload.text, language=payload.language))
+        except BaseException as exc:
+            with CancelScope(shield=True):
+                await resources.aclose()
+            if isinstance(exc, BudgetExceeded):
+                raise HTTPException(429, str(exc)) from exc
+            if isinstance(exc, SpeechError):
+                raise HTTPException(502, "Speech generation failed") from exc
+            raise
+        return ManagedSpeechResponse(
+            stream.chunks, resources=resources, media_type=stream.content_type,
+            headers={"X-TTS-First-Byte-Ms": str(stream.tts_first_byte_ms),
+                     "Cache-Control": "no-store", "X-Accel-Buffering": "no"},
         )
 
     @app.get("/")

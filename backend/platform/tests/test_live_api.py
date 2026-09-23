@@ -1,14 +1,16 @@
 from pathlib import Path
 from decimal import Decimal
+import asyncio
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi.testclient import TestClient
 
-from backend.platform.app import create_app
+from backend.platform.app import ManagedSpeechResponse, create_app
 from backend.platform.config import Settings
 from backend.platform.services.responses import ReplyComposer
 from backend.router.providers.openai_provider import RouterProviderError
 from backend.voice.stt import TranscriptionResult
-from backend.voice.tts import SpeechResult
+from backend.voice.tts import SpeechError, SpeechResult, SpeechStream
 from contracts.models import Decision, RouteResult, Slot
 
 
@@ -168,3 +170,96 @@ def test_read_only_claim_and_office_use_mock_and_knowledge_base():
         rationale="payments", certainty="high", topic_operation="create",
     )
     assert "ОГПО" in composer.compose(payments, [], "ru")
+
+
+def test_streaming_http_reserves_budget_once_and_closes_provider_on_success_or_error():
+    class StreamingTTS:
+        closed = 0
+        fail = False
+
+        @asynccontextmanager
+        async def stream(self, text, *, language):
+            try:
+                if self.fail:
+                    raise SpeechError("provider details")
+                async def chunks():
+                    yield b"first"
+                    yield b"last"
+                yield SpeechStream(chunks=chunks(), tts_first_byte_ms=10, started_at=0)
+            finally:
+                self.closed += 1
+
+    app = create_app(live_settings())
+    tts = app.state.tts = StreamingTTS()
+    with TestClient(app) as client:
+        sid = client.post("/api/sessions").json()["session_id"]
+        response = client.post("/api/voice/synthesize/stream", json={"text": "Hello"},
+                               headers={"X-Session-ID": sid})
+        assert response.content == b"firstlast"
+        assert response.headers["x-tts-first-byte-ms"] == "10"
+        assert "x-tts-total-ms" not in response.headers
+        assert tts.closed == 1
+        assert app.state.budget._session_reserved[sid] == Decimal("0.02")
+        tts.fail = True
+        assert client.post("/api/voice/synthesize/stream", json={"text": "Hello"}).status_code == 502
+        assert tts.closed == 2
+        assert app.state.paid_slots._value == 2
+
+
+def test_stream_disconnect_before_body_releases_resources():
+    closed = []
+
+    async def check():
+        resources = AsyncExitStack()
+        resources.callback(lambda: closed.append(True))
+        async def body():
+            yield b"unused"
+        response = ManagedSpeechResponse(body(), resources=resources)
+        async def send(message):
+            raise OSError("client disconnected before headers")
+        async def receive():
+            return {"type": "http.disconnect"}
+        try:
+            await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+        except Exception:
+            pass
+        assert closed == [True]
+    asyncio.run(check())
+
+
+def test_stream_late_failure_releases_provider_and_paid_slot():
+    async def check(disconnect):
+        slots = asyncio.Semaphore(1)
+        resources = AsyncExitStack()
+        closed = []
+        await resources.enter_async_context(slots)
+        resources.callback(lambda: closed.append(True))
+
+        async def body():
+            yield b"first"
+            raise SpeechError("provider failed after first audio")
+
+        response = ManagedSpeechResponse(body(), resources=resources)
+        sent = []
+
+        async def send(message):
+            sent.append(message)
+            if disconnect and message["type"] == "http.response.body":
+                raise OSError("client disconnected during audio")
+
+        async def receive():
+            return {"type": "http.disconnect"}
+
+        try:
+            await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+        except Exception:
+            pass
+        else:
+            raise AssertionError("A truncated stream must not complete successfully")
+        assert sent[0]["type"] == "http.response.start"
+        assert sent[1]["body"] == b"first"
+        assert closed == [True]
+        assert slots._value == 1
+
+    asyncio.run(check(disconnect=True))
+    asyncio.run(check(disconnect=False))

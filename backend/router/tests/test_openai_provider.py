@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from backend.router.catalog import load_catalog
-from backend.router.models import RouterModelOutput
+from backend.router.models import CompactRouterOutput, RouterModelOutput
 from backend.router.providers.openai_provider import (
     OpenAIRouterProvider,
     RouterConfigurationError,
@@ -79,12 +79,24 @@ def test_provider_uses_responses_structured_output_without_storage():
     assert call["timeout"] == 3
     assert call["max_output_tokens"] == 500
     assert call["prompt_cache_key"] == "saqta-router-v1"
+    assert "text" not in call  # Production behavior stays unchanged by default.
     assert "SC01" in call["instructions"]
     assert '"catalog"' not in call["input"]
     assert result.decision.scenario_ids == ["SC30"]
     assert result.decision.selected_scenario_id == "SC30"
     assert result.decision.slots[0].name == "payment_date"
     assert len(seen_usage) == 1
+
+
+def test_optional_low_verbosity_retains_full_schema_and_reasoning():
+    client, calls = fake_client(output())
+    run(OpenAIRouterProvider(model="configured-model", client=client,
+                            text_verbosity="low", reasoning_effort="low"))
+    assert calls.calls[0]["text"] == {"verbosity": "low"}
+    assert calls.calls[0]["text_format"] is RouterModelOutput
+    assert calls.calls[0]["reasoning"] == {"effort": "low"}
+    with pytest.raises(RouterConfigurationError, match="text_verbosity"):
+        OpenAIRouterProvider(model="configured-model", client=client, text_verbosity="bad")
 
 
 def test_urgent_scenario_is_deterministically_first():
@@ -168,3 +180,28 @@ def test_model_must_be_explicitly_configured():
     client, _ = fake_client(output())
     with pytest.raises(RouterConfigurationError, match="OPENAI_ROUTER_MODEL"):
         OpenAIRouterProvider(model="", client=client)
+
+
+def test_compact_schema_preserves_order_language_slots_and_catalog_confirmation():
+    parsed = CompactRouterOutput(
+        scenario_ids=["SC28", "SC38"], language="mixed", language_components=["kk", "ru"],
+        topic_operation="switch", slots=[{"name": "policy_number", "value": "TEST-1"}],
+        certainty="high", rationale="Расторжение и подозрительный звонок",
+        alternatives=[], clarification_question=None,
+    )
+    client, calls = fake_client(parsed)
+    result = run(OpenAIRouterProvider(model="configured-model", client=client, compact_output=True))
+    assert calls.calls[0]["text_format"] is CompactRouterOutput
+    assert result.decision.scenario_ids == ["SC38", "SC28"]
+    assert result.decision.requires_confirmation is True
+    assert result.decision.slots[0].value == "TEST-1"
+
+
+def test_compact_schema_keeps_unclear_and_language_validation():
+    from pydantic import ValidationError
+    base = dict(scenario_ids=["SYS_UNCLEAR"], language="mixed", language_components=["kk", "ru"],
+                topic_operation="none", slots=[], certainty="low", rationale="Нужен контекст")
+    with pytest.raises(ValidationError):
+        CompactRouterOutput(**base)
+    with pytest.raises(ValidationError):
+        CompactRouterOutput(**(base | {"language_components": ["ru"]}), clarification_question="Что случилось?")

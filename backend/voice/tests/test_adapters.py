@@ -134,3 +134,38 @@ def test_speech_rejects_blank_and_empty_audio():
     with pytest.raises(SpeechError, match="no audio"):
         asyncio.run(adapter.synthesize("Hello"))
     assert "instructions" not in endpoint.calls[0]
+
+
+def test_stream_exposes_first_chunk_without_reading_tail_and_closes_when_cancelled():
+    events = []
+
+    class DelayedStream(FakeSpeechStream):
+        async def __aexit__(self, *args):
+            events.append("closed")
+
+        async def iter_bytes(self):
+            events.append("first")
+            yield b"first"
+            events.append("tail")
+            yield b"last"
+
+    endpoint = SimpleNamespace(create=lambda **kwargs: DelayedStream([]))
+    adapter = OpenAISynthesizer(model="gpt-4o-mini-tts", client=SimpleNamespace(
+        audio=SimpleNamespace(speech=SimpleNamespace(with_streaming_response=endpoint))))
+
+    async def consume_first():
+        async with adapter.stream("Hello") as stream:
+            assert await anext(stream.chunks) == b"first"
+            assert events == ["first"]
+            assert stream.tts_first_byte_ms >= 0
+    asyncio.run(consume_first())
+    assert events == ["first", "closed"]
+
+
+def test_stream_size_limit_remains_enforced(monkeypatch):
+    monkeypatch.setattr("backend.voice.tts.MAX_OUTPUT_BYTES", 5)
+    endpoint = FakeSpeech([b"123", b"456"])
+    adapter = OpenAISynthesizer(model="tts-1", client=SimpleNamespace(
+        audio=SimpleNamespace(speech=endpoint)))
+    with pytest.raises(SpeechError, match="exceeds"):
+        asyncio.run(adapter.synthesize("Hello"))
