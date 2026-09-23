@@ -9,15 +9,20 @@
 Structured Output schema, полный каталог 40+3, prompt safety, urgent-first policy,
 явные ошибки, injectable OpenAI client, бесплатные unit-тесты. Приложение ещё scaffold.
 
-## Этап 2 — ограниченный live smoke и eval-команда
+## Этап 2 — ограниченный live smoke и eval-команда ✅
 
 CLI с явными `--live`, `--max-items` и лимитом попыток; загрузка модели/ключа из env,
 usage-отчёт, predictions.json. Сначала 3–5 реплик RU/KK/mixed, без STT/TTS.
 Модель выбираем по фактической доступности и качеству, а не зашиваем в код.
 
+Результат первого smoke на gpt-6-luna: 5/5 (RU, KK, RU/KK, EN, KK/EN/RU),
+22 085 input + 731 output tokens, оценка $0.005148. Router latency:
+min 2.414 s, median 3.766 s, max 5.562 s. Точность хорошая, скорость требует работы.
+
 ## Этап 3 — оценка 104 реплик и настройка маршрутизации
 
-Официальный evaluate.py, разрезы RU/KK/mixed/multi-intent, разбор ошибок,
+В начале этапа сначала commit + push этапа 2. Затем официальный evaluate.py,
+разрезы RU/KK/EN/mixed/multi-intent, разбор ошибок,
 изменение промпта только по общим причинам. Отдельный synthetic holdout против переобучения.
 
 ## Этап 4 — состояние разговора

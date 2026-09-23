@@ -30,7 +30,8 @@ class ExtractedSlot(ModelOutput):
 class RouterModelOutput(ModelOutput):
     scenarios: list[RoutedScenario] = Field(min_length=1, max_length=6)
     alternatives: list[RoutedAlternative] = Field(default_factory=list, max_length=3)
-    language: Literal["ru", "kk", "mixed"]
+    language: Literal["ru", "kk", "en", "mixed"]
+    language_components: list[Literal["ru", "kk", "en"]] = Field(min_length=1, max_length=3)
     certainty: Literal["high", "medium", "low"]
     rationale: str = Field(min_length=1, max_length=400)
     slots: list[ExtractedSlot] = Field(default_factory=list, max_length=20)
@@ -46,4 +47,11 @@ class RouterModelOutput(ModelOutput):
             raise ValueError("selected scenario ids must be unique")
         if "SYS_UNCLEAR" in ids and not self.clarification_question:
             raise ValueError("SYS_UNCLEAR requires clarification_question")
+        components = list(dict.fromkeys(self.language_components))
+        if components != self.language_components:
+            raise ValueError("language_components must be unique")
+        if self.language == "mixed" and len(components) < 2:
+            raise ValueError("mixed language requires at least two components")
+        if self.language != "mixed" and components != [self.language]:
+            raise ValueError("single language must match its only component")
         return self

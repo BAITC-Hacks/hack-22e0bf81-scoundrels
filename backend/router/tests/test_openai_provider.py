@@ -26,6 +26,7 @@ def output(**overrides):
         "scenarios": [{"scenario_id": "SC30", "reason": "Списание без полиса"}],
         "alternatives": [{"scenario_id": "SC26", "reason": "Документы могли не прийти"}],
         "language": "ru",
+        "language_components": ["ru"],
         "certainty": "high",
         "rationale": "Клиент сообщает о списании, после которого полис не оформлен.",
         "slots": [{"name": "payment_date", "value": "2026-09-30"}],
@@ -91,6 +92,16 @@ def test_urgent_scenario_is_deterministically_first():
     result = run(OpenAIRouterProvider(model="configured-model", client=client))
     assert result.decision.scenario_ids == ["SC38", "SC29"]
     assert result.decision.selected_scenario_id == "SC38"
+
+
+def test_three_language_mix_is_preserved_in_detailed_result():
+    parsed = output(language="mixed", language_components=["ru", "kk", "en"])
+    client, _ = fake_client(parsed)
+    detailed = asyncio.run(OpenAIRouterProvider(
+        model="configured-model", client=client
+    ).route_detailed(RouterContext(text="ru kk en", language="mixed"), official_catalog()))
+    assert detailed.detected_language == "mixed"
+    assert detailed.language_components == ("ru", "kk", "en")
 
 
 def test_catalog_confirmation_policy_overrides_model_false():

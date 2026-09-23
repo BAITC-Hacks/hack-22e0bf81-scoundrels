@@ -4,6 +4,7 @@ Live wiring and usage accounting are intentionally deferred until the shared bud
 guard is available. Offline tests inject a fake client and never contact OpenAI.
 """
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -21,6 +22,14 @@ class RouterConfigurationError(RouterProviderError):
     """Required live provider configuration is absent."""
 
 
+@dataclass(frozen=True)
+class DetailedRoute:
+    result: RouteResult
+    detected_language: str
+    language_components: tuple[str, ...]
+    usage: Any | None
+
+
 class OpenAIRouterProvider:
     def __init__(
         self,
@@ -30,6 +39,7 @@ class OpenAIRouterProvider:
         client: Any | None = None,
         timeout_seconds: float = 8.0,
         max_output_tokens: int = 900,
+        reasoning_effort: str | None = None,
         usage_callback: Callable[[Any], None] | None = None,
     ):
         if not model or not model.strip():
@@ -44,15 +54,19 @@ class OpenAIRouterProvider:
         self.model = model.strip()
         self.timeout_seconds = timeout_seconds
         self.max_output_tokens = max_output_tokens
+        self.reasoning_effort = reasoning_effort
         self.usage_callback = usage_callback
         # One SDK retry means at most two paid attempts. The budget guard may later set zero.
         self.client = client or AsyncOpenAI(api_key=api_key, max_retries=1)
 
     async def route(self, context: RouterContext, catalog: list[Scenario]) -> RouteResult:
+        return (await self.route_detailed(context, catalog)).result
+
+    async def route_detailed(self, context: RouterContext, catalog: list[Scenario]) -> DetailedRoute:
         if not catalog:
             raise RouterProviderError("scenario catalog is empty")
         try:
-            response = await self.client.responses.parse(
+            request = dict(
                 model=self.model,
                 instructions=SYSTEM_INSTRUCTIONS,
                 input=build_turn_input(context, catalog),
@@ -61,6 +75,9 @@ class OpenAIRouterProvider:
                 store=False,
                 timeout=self.timeout_seconds,
             )
+            if self.reasoning_effort:
+                request["reasoning"] = {"effort": self.reasoning_effort}
+            response = await self.client.responses.parse(**request)
         except Exception as exc:
             raise RouterProviderError("OpenAI routing request failed") from exc
 
@@ -74,9 +91,15 @@ class OpenAIRouterProvider:
         if not isinstance(parsed, RouterModelOutput):
             parsed = RouterModelOutput.model_validate(parsed)
 
+        usage = getattr(response, "usage", None)
         if self.usage_callback is not None:
-            self.usage_callback(getattr(response, "usage", None))
-        return self._to_contract(parsed, catalog, context)
+            self.usage_callback(usage)
+        return DetailedRoute(
+            result=self._to_contract(parsed, catalog, context),
+            detected_language=parsed.language,
+            language_components=tuple(parsed.language_components),
+            usage=usage,
+        )
 
     @staticmethod
     def _to_contract(

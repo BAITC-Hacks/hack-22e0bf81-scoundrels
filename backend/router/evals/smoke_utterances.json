@@ -1,0 +1,34 @@
+{
+  "utterances": [
+    {
+      "id": "S001",
+      "text": "Вчера деньги списались, но полис так и не появился",
+      "lang": "ru",
+      "expected": ["SC30"]
+    },
+    {
+      "id": "S002",
+      "text": "Жол апаты қазір ғана болды, не істеуім керек?",
+      "lang": "kk",
+      "expected": ["SC11"]
+    },
+    {
+      "id": "S003",
+      "text": "Сәлеметсіз бе, ОГПО оформить етейін деп едім",
+      "lang": "mixed",
+      "expected": ["SC02"]
+    },
+    {
+      "id": "S004",
+      "text": "Can I pay for the insurance in installments?",
+      "lang": "en",
+      "expected": ["SC31"]
+    },
+    {
+      "id": "S005",
+      "text": "Маған suspicious call болды, и ещё I need to change мой телефон номер",
+      "lang": "mixed",
+      "expected": ["SC38", "SC29"]
+    }
+  ]
+}
