@@ -11,9 +11,11 @@ Shared owner: role 2. Public v1 shapes are fixed before parallel work.
   Body: {"text":"Полис керек","language":"mixed"}.
   Errors: 404 unknown session, 409 after 10 user turns, 422 invalid input.
 - POST /api/voice/transcribe → multipart field file; target response Transcript.
-  Scaffold returns 501. Language auto-detection belongs to STT/triage.
+  Scaffold returns 501. Provider belongs to role 1 (backend/voice); endpoint to role 2.
+  Language auto-detection belongs to STT/triage.
 - POST /api/voice/synthesize → SpeechRequest; target response audio/mpeg bytes.
-  Scaffold returns 501. API key never goes to browser.
+  Scaffold returns 501. TTS provider belongs to role 1; endpoint to role 2.
+  API key never goes to browser.
 - GET / → frontend; /static/* → frontend/src/*.
 
 First complete voice integration uses upload/transcribe → turns → synthesize/playback.

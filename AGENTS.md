@@ -4,9 +4,10 @@ Read README.md, docs/CONTEXT.md, docs/OWNERSHIP.md, contracts/README.md,
 then AGENTS.md and TASKS.md inside your assigned folder. All paths below are repo-relative.
 
 ## Scope and collaboration
-- One human + one coding agent per workstream. Roles are numeric until names are assigned.
-- Owner 1: feat/router, backend/router/**.
-- Owner 2: feat/voice, backend/platform/**; integration owner for explicitly listed shared files.
+- One human + one coding agent per workstream. Owner 1 is this task; teammates take roles 2 and 3.
+- feat/router is a legacy bootstrap branch; do not start work there.
+- Owner 1 (Alexandr + Codex): feat/voice, backend/router/** and backend/voice/**.
+- Owner 2: feat/backend, backend/platform/**; integration owner for explicitly listed shared files.
 - Owner 3: feat/frontend, frontend/**.
 - Keep tests, prompts, role notes and role dependencies INSIDE your folder.
 - Do not refactor another owner's module or silently change shared contracts.
@@ -16,7 +17,7 @@ then AGENTS.md and TASKS.md inside your assigned folder. All paths below are rep
 - Meaningful commit + push roughly every 30 minutes during active work; do not exceed the
   organizer's hourly progress expectation. A local commit alone is invisible to GitHub.
   This is a team workflow, not an installed timer. Never create empty activity commits.
-- Stage only your scope (git add backend/router, backend/platform, or frontend).
+- Stage only your scope (git add backend/router backend/voice, backend/platform, or frontend).
   Integration owner stages common paths explicitly. Inspect staged diff before committing.
 - Users' unrelated edits belong to them; preserve them.
 

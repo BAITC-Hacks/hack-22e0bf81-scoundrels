@@ -13,12 +13,14 @@ Scaffold не делает платных API-вызовов; голосовые
 
 | Участник | Ветка | Рабочая папка | С чего начать |
 |---|---|---|---|
-| 1 — AI / routing | feat/router | backend/router/ | [Задачи](backend/router/TASKS.md) · [Промпт агенту](backend/router/START_PROMPT.md) |
-| 2 — Voice / backend / интеграция | feat/voice | backend/platform/ | [Задачи](backend/platform/TASKS.md) · [Промпт агенту](backend/platform/START_PROMPT.md) |
+| 1 — Мы: LLM + голос | feat/voice | backend/router/ + backend/voice/ | [Задачи](backend/router/TASKS.md) · [Промпт агенту](backend/router/START_PROMPT.md) |
+| 2 — Backend / интеграция | feat/backend | backend/platform/ | [Задачи](backend/platform/TASKS.md) · [Промпт агенту](backend/platform/START_PROMPT.md) |
 | 3 — Frontend / UX | feat/frontend | frontend/ | [Задачи](frontend/TASKS.md) · [Промпт агенту](frontend/START_PROMPT.md) |
 
 У каждого отдельный clone и одна рабочая ветка. Прочитайте [правила совместной работы](docs/OWNERSHIP.md).
-Общие контракты и корневые файлы ведёт участник 2; остальные меняют только свою папку.
+Общие контракты и корневые файлы ведёт участник 2; остальные меняют только свои зоны.
+Ветка feat/router устарела: наша общая LLM + Voice ветка теперь feat/voice.
+Голосовые задачи роли 1: [backend/voice/TASKS.md](backend/voice/TASKS.md).
 Коммит **и push** осмысленного прогресса примерно каждые 30 минут.
 
 ## Быстрый старт
@@ -29,11 +31,11 @@ Scaffold не делает платных API-вызовов; голосовые
 git clone https://github.com/BAITC-Hacks/hack-22e0bf81-scoundrels.git
 cd hack-22e0bf81-scoundrels
 git fetch origin
-git switch --track origin/feat/router
+git switch --track origin/feat/voice
 python -m venv .venv
 ```
 
-В последней git-команде выберите свою ветку: feat/router, feat/voice или feat/frontend.
+В последней git-команде выберите свою ветку: feat/voice, feat/backend или feat/frontend.
 
 Windows PowerShell (активация окружения не требуется):
 
@@ -72,8 +74,9 @@ SESSION_BUDGET_USD/RUN_BUDGET_USD в .env.example пока являются на
 ## Структура
 
 ```text
-backend/router/       # роль 1: LLM, темы, каталог, промпты, evals, tests
-backend/platform/     # роль 2: FastAPI, сессии, STT/TTS, mock actions, бюджет
+backend/router/       # роль 1 (мы): LLM, темы, каталог, промпты, evals, tests
+backend/voice/        # роль 1 (мы): OpenAI STT/TTS, языки, аудиоадаптеры
+backend/platform/     # роль 2: FastAPI, сессии, HTTP endpoints, mock actions, бюджет
 frontend/             # роль 3: микрофон, клиент, супервизор, replay
 contracts/            # общие Pydantic-модели и описание API v1
 case_2/voice_router_dataset/  # неизменённый официальный стартовый набор
