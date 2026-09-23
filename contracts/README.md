@@ -26,7 +26,7 @@ Shared owner: role 2. Public v1 shapes are fixed before parallel work.
 - GET / → frontend; /static/* → frontend/src/*.
 
 First complete voice integration uses upload/transcribe → turns → synthesize/playback.
-The performance branch uses HTTP audio streaming; browsers without MP3 MediaSource
+The integrated app uses HTTP audio streaming; browsers without MP3 MediaSource
 support buffer that same response. No WebSocket endpoint is implemented.
 
 ## Python

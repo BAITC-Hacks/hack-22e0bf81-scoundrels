@@ -79,12 +79,24 @@ def test_provider_uses_responses_structured_output_without_storage():
     assert call["timeout"] == 3
     assert call["max_output_tokens"] == 500
     assert call["prompt_cache_key"] == "saqta-router-v1"
+    assert "text" not in call  # Production behavior stays unchanged by default.
     assert "SC01" in call["instructions"]
     assert '"catalog"' not in call["input"]
     assert result.decision.scenario_ids == ["SC30"]
     assert result.decision.selected_scenario_id == "SC30"
     assert result.decision.slots[0].name == "payment_date"
     assert len(seen_usage) == 1
+
+
+def test_optional_low_verbosity_retains_full_schema_and_reasoning():
+    client, calls = fake_client(output())
+    run(OpenAIRouterProvider(model="configured-model", client=client,
+                            text_verbosity="low", reasoning_effort="low"))
+    assert calls.calls[0]["text"] == {"verbosity": "low"}
+    assert calls.calls[0]["text_format"] is RouterModelOutput
+    assert calls.calls[0]["reasoning"] == {"effort": "low"}
+    with pytest.raises(RouterConfigurationError, match="text_verbosity"):
+        OpenAIRouterProvider(model="configured-model", client=client, text_verbosity="bad")
 
 
 def test_urgent_scenario_is_deterministically_first():

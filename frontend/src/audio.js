@@ -196,16 +196,42 @@ export class AudioPlayer {
   async playResponse(response) {
     this.stop();
     this.transferCompletedAt = null;
-    const mime = "audio/mpeg";
-    if (!response.body || typeof MediaSource === "undefined" || !MediaSource.isTypeSupported(mime)) {
-      const blob = await response.blob();
-      this.transferCompletedAt = performance.now();
-      await this.playBlob(blob);
-      return;
-    }
     const controller = new AbortController();
     this._streamAbort = controller;
     const { signal } = controller;
+    const mime = "audio/mpeg";
+    if (!response.body || typeof MediaSource === "undefined" || !MediaSource.isTypeSupported(mime)) {
+      // Buffer the same request, but retain cancellation on browsers without MSE.
+      // Otherwise a stopped/obsolete response can start playing after its download.
+      const reader = response.body?.getReader();
+      this._reader = reader || null;
+      try {
+        let blob;
+        if (reader) {
+          const chunks = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            signal.throwIfAborted();
+            if (done) break;
+            chunks.push(value);
+          }
+          blob = new Blob(chunks, { type: response.headers.get("content-type") || mime });
+        } else {
+          blob = await response.blob();
+        }
+        signal.throwIfAborted();
+        this.transferCompletedAt = performance.now();
+        await this.playBlob(blob);
+      } finally {
+        if (reader) {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
+        if (this._reader === reader) this._reader = null;
+        if (this._streamAbort === controller) this._streamAbort = null;
+      }
+      return;
+    }
     const reader = response.body.getReader();
     this._reader = reader;
     const media = new MediaSource();

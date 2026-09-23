@@ -225,3 +225,41 @@ def test_stream_disconnect_before_body_releases_resources():
             pass
         assert closed == [True]
     asyncio.run(check())
+
+
+def test_stream_late_failure_releases_provider_and_paid_slot():
+    async def check(disconnect):
+        slots = asyncio.Semaphore(1)
+        resources = AsyncExitStack()
+        closed = []
+        await resources.enter_async_context(slots)
+        resources.callback(lambda: closed.append(True))
+
+        async def body():
+            yield b"first"
+            raise SpeechError("provider failed after first audio")
+
+        response = ManagedSpeechResponse(body(), resources=resources)
+        sent = []
+
+        async def send(message):
+            sent.append(message)
+            if disconnect and message["type"] == "http.response.body":
+                raise OSError("client disconnected during audio")
+
+        async def receive():
+            return {"type": "http.disconnect"}
+
+        try:
+            await response({"type": "http", "asgi": {"spec_version": "2.4"}}, receive, send)
+        except Exception:
+            pass
+        else:
+            raise AssertionError("A truncated stream must not complete successfully")
+        assert sent[0]["type"] == "http.response.start"
+        assert sent[1]["body"] == b"first"
+        assert closed == [True]
+        assert slots._value == 1
+
+    asyncio.run(check(disconnect=True))
+    asyncio.run(check(disconnect=False))

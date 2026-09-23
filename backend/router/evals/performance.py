@@ -14,7 +14,8 @@ from contracts.models import RouterContext
 
 
 PROFILES = {"baseline": ("low", False), "none": ("none", False),
-            "compact": ("none", True), "compact_low": ("low", True)}
+            "compact": ("none", True), "compact_low": ("low", True),
+            "terse": ("low", False)}
 
 
 def parse_args(argv=None):
@@ -44,6 +45,19 @@ def summarize(records):
     return summary
 
 
+def quality_exit_code(records):
+    """An HTTP-successful but wrong route/language must not pass the evaluation."""
+    if any("error" in row for row in records):
+        return 2
+    measured = [row for row in records if not row["warmup"]]
+    if not measured or any(
+        row.get("predicted") != row["expected"]
+        or row.get("language") != row["expected_language"] for row in measured
+    ):
+        return 1
+    return 0
+
+
 async def run(args):
     if not args.live:
         raise SystemExit("Refusing paid calls without --live")
@@ -58,6 +72,7 @@ async def run(args):
     providers = {name: OpenAIRouterProvider(
         model=settings.openai_router_model, api_key=settings.openai_api_key.get_secret_value(),
         reasoning_effort=PROFILES[name][0], compact_output=PROFILES[name][1],
+        text_verbosity="low" if name == "terse" else None,
         max_output_tokens=600, timeout_seconds=12, prompt_cache_key="saqta-router-v1",
     ) for name in profiles}
     records = []
@@ -70,7 +85,7 @@ async def run(args):
                "expected": item["expected"], "expected_language": item["lang"]}
         try:
             result = await providers[name].route_detailed(
-                RouterContext(text=item["text"], language=item["lang"]), catalog)
+                RouterContext(text=item["text"], language="auto"), catalog)
             row.update(predicted=result.result.decision.scenario_ids,
                        language=result.detected_language,
                        input_tokens=_usage_value(result.usage, "input_tokens"),
@@ -84,7 +99,7 @@ async def run(args):
         records.append(row)
         report = {"model": settings.openai_router_model, "max_calls": max_calls,
                   "summary": summarize(records), "records": records,
-                  "note": "One excluded warmup per profile; interleaved serial calls, not a load test.",
+                  "note": "One excluded warmup per profile; interleaved serial calls; language hint auto (no ground-truth hint); not a load test.",
                   "estimated_cost": estimate_cost(settings.openai_router_model,
                       sum(r.get("input_tokens", 0) for r in records),
                       sum(r.get("output_tokens", 0) for r in records))}
@@ -105,7 +120,7 @@ async def run(args):
         for provider in providers.values():
             await provider.client.close()
     print(json.dumps(summarize(records), indent=2))
-    return 2 if any("error" in row for row in records) else 0
+    return quality_exit_code(records)
 
 
 if __name__ == "__main__":

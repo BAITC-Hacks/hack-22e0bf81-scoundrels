@@ -4,6 +4,9 @@
 и interleaved A/B CLI `backend.router.evals.performance`. Reasoning `none`
 ускоряет ответы, но показал регрессии; по умолчанию оставлен исходный `low`.
 Данные эксперимента: `docs/PERFORMANCE.md`.
+Перед интеграцией проверен `terse` (verbosity low): 10/10 маршрутов/языков,
+но p50 4796 мс против исходных 4233 мс; default не изменён. Сравнительный CLI
+использует auto language hint и ненулевой exit code при регрессии качества.
 
 Ветка: feat/voice
 Исторический handoff ветки `feat/voice`. Текущий интегрированный статус —

@@ -69,6 +69,33 @@ test("unsupported MSE buffers the same response without another request", async 
   assert.equal(audio.plays, 1);
 });
 
+test("stopping buffered fallback cancels download and prevents stale playback", async (t) => {
+  const { player, audio } = setup(t);
+  FakeMediaSource.supported = false;
+  let cancelled = false;
+  const body = new ReadableStream({ cancel() { cancelled = true; } });
+  const consumption = player.playResponse(new Response(body));
+  player.stop();
+  await assert.rejects(consumption, { name: "AbortError" });
+  assert.equal(cancelled, true);
+  assert.equal(audio.plays, 0);
+  assert.equal(player.transferCompletedAt, null);
+  assert.equal(player._reader, null);
+  assert.equal(player._streamAbort, null);
+});
+
+test("replacing buffered fallback only plays the new response", async (t) => {
+  const { player, audio } = setup(t);
+  FakeMediaSource.supported = false;
+  const previous = player.playResponse(new Response(new ReadableStream()));
+  const rejected = assert.rejects(previous, { name: "AbortError" });
+  await player.playResponse(new Response(new Uint8Array([3, 4])));
+  await rejected;
+  assert.equal(audio.plays, 1);
+  assert.equal(player._reader, null);
+  assert.equal(player._streamAbort, null);
+});
+
 test("stopping stream cancels the pending download", async (t) => {
   const { player } = setup(t);
   let cancelled = false;

@@ -42,6 +42,7 @@ class OpenAIRouterProvider:
         reasoning_effort: str | None = None,
         prompt_cache_key: str | None = None,
         compact_output: bool = False,
+        text_verbosity: str | None = None,
         usage_callback: Callable[[Any], None] | None = None,
     ):
         if not model or not model.strip():
@@ -52,6 +53,8 @@ class OpenAIRouterProvider:
             raise RouterConfigurationError("max_output_tokens must be between 128 and 2048")
         if client is None and not api_key:
             raise RouterConfigurationError("OPENAI_API_KEY is required for a live client")
+        if text_verbosity not in {None, "low", "medium", "high"}:
+            raise RouterConfigurationError("text_verbosity must be low, medium, high or None")
 
         self.model = model.strip()
         self.timeout_seconds = timeout_seconds
@@ -59,6 +62,7 @@ class OpenAIRouterProvider:
         self.reasoning_effort = reasoning_effort
         self.prompt_cache_key = prompt_cache_key
         self.compact_output = compact_output
+        self.text_verbosity = text_verbosity
         self.usage_callback = usage_callback
         # A timeout can hide an already-billed request. A caller must authorize retries.
         self.client = client or AsyncOpenAI(api_key=api_key, max_retries=0)
@@ -90,6 +94,8 @@ class OpenAIRouterProvider:
                 request["reasoning"] = {"effort": self.reasoning_effort}
             if self.prompt_cache_key:
                 request["prompt_cache_key"] = self.prompt_cache_key
+            if self.text_verbosity:
+                request["text"] = {"verbosity": self.text_verbosity}
             response = await self.client.responses.parse(**request)
         except Exception as exc:
             raise RouterProviderError("OpenAI routing request failed") from exc

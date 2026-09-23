@@ -65,6 +65,9 @@ let currentSessionId = null;
 let currentTurnCount = 0;
 const MAX_TURNS = 10;
 let isBusy = false;
+let isCapturing = false;
+let captureStarting = false;
+let operationEpoch = 0;
 let sessionHistory = [];
 let lastSpeechEndTimestamp = null;
 let showRawJson = false;
@@ -198,11 +201,14 @@ function applyLocalization(lang) {
  */
 function setBusy(busy) {
   isBusy = busy;
-  const canSend = !busy && currentSessionId && currentTurnCount < MAX_TURNS;
+  const canSend = !busy && !isCapturing && currentSessionId && currentTurnCount < MAX_TURNS;
   sendBtn.disabled = !canSend;
-  micBtn.disabled = !canSend;
-  resetBtn.disabled = busy;
-  exportSessionBtn.disabled = busy || sessionHistory.length === 0;
+  // Keep the microphone available to stop an active recording.
+  micBtn.disabled = busy || !currentSessionId || currentTurnCount >= MAX_TURNS;
+  resetBtn.disabled = busy || isCapturing;
+  exportSessionBtn.disabled = busy || isCapturing || sessionHistory.length === 0;
+  importSessionInput.disabled = busy || isCapturing;
+  datasetSampleSelect.disabled = busy || isCapturing;
 
   if (busy) {
     sendBtnLabel.textContent = currentUiLang === "kk" ? "Жіберілуде…" : "Отправка…";
@@ -245,6 +251,8 @@ function showError(msg) {
  * Starts a fresh conversation session
  */
 async function initSession() {
+  if (isBusy || isCapturing) return;
+  const epoch = ++operationEpoch;
   setBusy(true);
   showError("");
   currentTurnCount = 0;
@@ -270,12 +278,14 @@ async function initSession() {
     statusBadge.textContent = dict.statusConnecting;
 
     const sessionData = await createSession();
+    if (epoch !== operationEpoch) return;
     currentSessionId = sessionData.session_id;
     currentConnectionStatus = "online";
     sessionInfo.textContent = dict.sessionLabel(currentSessionId.substring(0, 8));
     statusBadge.className = "status-pill status-online";
     statusBadge.textContent = dict.statusOnline;
   } catch (err) {
+    if (epoch !== operationEpoch) return;
     currentSessionId = null;
     currentConnectionStatus = "error";
     sessionInfo.textContent = dict.sessionError;
@@ -283,7 +293,7 @@ async function initSession() {
     statusBadge.textContent = dict.statusError;
     showError(err.message);
   } finally {
-    setBusy(false);
+    if (epoch === operationEpoch) setBusy(false);
   }
 }
 
@@ -296,7 +306,7 @@ async function initSession() {
  * @param {number|null} [sttMs=null] Server transcription duration, if measured.
  */
 async function executeTurn(text, lang, speechEndMs = null, fromRecording = false, sttMs = null) {
-  if (!text || (isBusy && !fromRecording) || !currentSessionId) return;
+  if (!text || isCapturing || (isBusy && !fromRecording) || !currentSessionId) return;
 
   const dict = getLocale(currentUiLang);
 
@@ -306,13 +316,17 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
   }
 
   showError("");
+  const sessionId = currentSessionId;
+  const epoch = ++operationEpoch;
+  const isCurrent = () => epoch === operationEpoch && sessionId === currentSessionId;
   setBusy(true);
   audioPlayer.stop();
   audioPlayer.onPlaybackStart = null;
 
   try {
     // 1. Send turn to router
-    const result = await sendTurn(currentSessionId, text, lang);
+    const result = await sendTurn(sessionId, text, lang);
+    if (!isCurrent()) return;
     if (typeof sttMs === "number") result.timings.stt_ms = sttMs;
     currentTurnCount += 1;
     updateTurnCounter();
@@ -328,7 +342,11 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
     // 3. Attempt TTS speech synthesis if text is available
     if (result.assistant_text) {
       try {
-        const { response, ttsMs } = await synthesizeSpeech(result.assistant_text, result.language, currentSessionId, true);
+        const { response, ttsMs } = await synthesizeSpeech(result.assistant_text, result.language, sessionId, true);
+        if (!isCurrent()) {
+          await response.body?.cancel().catch(() => {});
+          return;
+        }
         if (typeof ttsMs === "number") {
           result.timings.tts_first_byte_ms = ttsMs;
         }
@@ -336,6 +354,7 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
         // Configure playback listener for monotonic end-to-audio measurement
         if (speechEndMs) {
           audioPlayer.onPlaybackStart = (playTimestamp) => {
+            if (!isCurrent()) return;
             const endToAudio = Math.max(0, playTimestamp - speechEndMs);
             result.timings.end_to_audio_ms = endToAudio;
             sessionTracker.recordSample(endToAudio);
@@ -347,7 +366,9 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
 
         audioPlayerContainer.hidden = false;
         await audioPlayer.playResponse(response);
+        if (!isCurrent()) return;
       } catch (ttsErr) {
+        if (!isCurrent()) return;
         // Honest 501 scaffold handling: log note, do not break text response
         if (ttsErr instanceof ApiError && ttsErr.isNotImplemented) {
           console.info("TTS is not implemented on server yet (HTTP 501)");
@@ -375,6 +396,7 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
     }
 
   } catch (err) {
+    if (!isCurrent()) return;
     if (err instanceof ApiError && err.isTurnLimitReached) {
       currentTurnCount = MAX_TURNS;
       updateTurnCounter();
@@ -383,7 +405,7 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
       showError(err.message);
     }
   } finally {
-    setBusy(false);
+    if (isCurrent()) setBusy(false);
   }
 }
 
@@ -392,6 +414,7 @@ async function executeTurn(text, lang, speechEndMs = null, fromRecording = false
  */
 async function handleTextSubmit(event) {
   event.preventDefault();
+  if (isBusy || isCapturing) return;
   const text = textInput.value.trim();
   if (!text) return;
   textInput.value = "";
@@ -411,6 +434,8 @@ voiceRecorder.onStateChange = (state) => {
     micBtn.classList.remove("recording");
     micLabel.textContent = dict.micProcessing;
   } else {
+    isCapturing = false;
+    setBusy(isBusy);
     micBtn.classList.remove("recording");
     micLabel.textContent = dict.micBtn;
   }
@@ -430,11 +455,16 @@ voiceRecorder.onError = (err) => {
 };
 
 voiceRecorder.onAudioReady = async (audioBlob, stopTimestamp) => {
+  if (isBusy || !currentSessionId) return;
+  const sessionId = currentSessionId;
+  const epoch = ++operationEpoch;
+  const isCurrent = () => epoch === operationEpoch && sessionId === currentSessionId;
   lastSpeechEndTimestamp = stopTimestamp;
   setBusy(true);
   const dict = getLocale(currentUiLang);
   try {
-    const transcriptResult = await transcribeAudio(audioBlob, "speech.webm", currentSessionId);
+    const transcriptResult = await transcribeAudio(audioBlob, "speech.webm", sessionId);
+    if (!isCurrent()) return;
     if (transcriptResult.text) {
       textInput.value = transcriptResult.text;
       await executeTurn(transcriptResult.text, transcriptResult.language || languageSelect.value,
@@ -443,26 +473,47 @@ voiceRecorder.onAudioReady = async (audioBlob, stopTimestamp) => {
       showError(dict.sttEmptyError);
     }
   } catch (err) {
+    if (!isCurrent()) return;
     if (err instanceof ApiError && err.isNotImplemented) {
       showError(dict.sttScaffoldError);
     } else {
       showError(`Ошибка STT: ${err.message}`);
     }
   } finally {
-    setBusy(false);
+    // executeTurn owns the new epoch once STT hands over successfully.
+    if (isCurrent()) setBusy(false);
   }
 };
 
 // Push-to-Talk (Hold to speak, release to send) + Click-toggle for accessibility
 let pttPointerDown = false;
 
+async function startRecording() {
+  if (captureStarting || isCapturing || isBusy) return;
+  captureStarting = true;
+  isCapturing = true;
+  operationEpoch++;
+  setBusy(isBusy);
+  audioPlayer.stop();
+  audioPlayer.onPlaybackStart = null;
+  try {
+    await voiceRecorder.start();
+  } catch (err) {
+    isCapturing = false;
+    setBusy(isBusy);
+    throw err;
+  } finally {
+    captureStarting = false;
+  }
+}
+
 micBtn.addEventListener("pointerdown", async (e) => {
-  if (isBusy || !currentSessionId || currentTurnCount >= MAX_TURNS) return;
+  if (isBusy || captureStarting || isCapturing || !currentSessionId || currentTurnCount >= MAX_TURNS) return;
   e.preventDefault();
   pttPointerDown = true;
   showError("");
   try {
-    await voiceRecorder.start();
+    await startRecording();
     // Permission may resolve after pointerup; do not leave the microphone open.
     if (!pttPointerDown) voiceRecorder.stop();
   } catch (err) {
@@ -479,12 +530,12 @@ window.addEventListener("pointerup", (e) => {
 
 // Space/Enter produce a keyboard click (detail=0): toggle recording accessibly.
 micBtn.addEventListener("click", async (e) => {
-  if (e.detail !== 0 || isBusy || !currentSessionId || currentTurnCount >= MAX_TURNS) return;
+  if (e.detail !== 0 || isBusy || captureStarting || !currentSessionId || currentTurnCount >= MAX_TURNS) return;
   if (voiceRecorder.isRecording) {
     voiceRecorder.stop();
   } else {
     showError("");
-    try { await voiceRecorder.start(); } catch { /* onError already displayed */ }
+    try { await startRecording(); } catch { /* onError already displayed */ }
   }
 });
 
@@ -497,6 +548,8 @@ exportSessionBtn.addEventListener("click", () => {
 });
 
 importSessionInput.addEventListener("change", async (e) => {
+  if (isBusy || isCapturing) return;
+  const epoch = operationEpoch;
   const file = e.target.files && e.target.files[0];
   if (!file) return;
 
@@ -504,10 +557,14 @@ importSessionInput.addEventListener("change", async (e) => {
 
   try {
     const loadedTurns = await parseSessionFile(file);
+    if (isBusy || isCapturing || epoch !== operationEpoch) return;
     if (loadedTurns.length === 0) {
       showError(dict.emptyHistoryError);
       return;
     }
+    operationEpoch++;
+    audioPlayer.stop();
+    audioPlayer.onPlaybackStart = null;
     sessionHistory = loadedTurns;
     currentTurnCount = loadedTurns.length;
     updateTurnCounter();
@@ -524,6 +581,7 @@ importSessionInput.addEventListener("change", async (e) => {
     noticeText.textContent = dict.replayBanner;
     exportSessionBtn.disabled = false;
   } catch (err) {
+    if (isBusy || isCapturing || epoch !== operationEpoch) return;
     showError(dict.fileReadError(err.message));
   } finally {
     importSessionInput.value = "";
@@ -531,11 +589,15 @@ importSessionInput.addEventListener("change", async (e) => {
 });
 
 datasetSampleSelect.addEventListener("change", (e) => {
+  if (isBusy || isCapturing) return;
   const selectedId = e.target.value;
   if (!selectedId) return;
 
   const found = DATASET_SAMPLES.find((s) => s.id === selectedId);
   if (!found) return;
+  operationEpoch++;
+  audioPlayer.stop();
+  audioPlayer.onPlaybackStart = null;
 
   const dict = getLocale(currentUiLang);
   const lastTurn = found.turns[found.turns.length - 1];
