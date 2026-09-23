@@ -1,0 +1,8 @@
+services:
+  voice-router:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      APP_MODE: scaffold
+    # Live env wiring is added by platform owner once spend limits are enforced.

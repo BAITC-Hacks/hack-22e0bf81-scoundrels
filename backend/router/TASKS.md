@@ -1,0 +1,38 @@
+# Роль 1 — AI Router
+
+Ветка: feat/router. Зона: backend/router/**.
+Начальное состояние: scaffold, интеграционные точки уже созданы; платные вызовы выключены.
+
+## Задачи по порядку
+
+1. Прочитать весь каталог, not_this_if, README набора и evaluate.py.
+2. Реализовать providers/openai_provider.py: structured output, модель из env,
+   таймаут, bounded output/retries, injectable client; настоящие LLM-решения.
+3. В service.py выбирать ordered scenario_ids: urgent first, остальные в порядке речи.
+   Учитывать все 43 ID. Не отрезать нужный сценарий жёстким lexical top-k.
+4. conversation.py: продолжение, заполнение слотов, switch/park/resume, multi-intent.
+   Платформа хранит state; router возвращает новый state. Не разделять сессии через globals.
+5. SYS_UNCLEAR/OUT_OF_SCOPE/GOODBYE; короткое основание по границам сценариев,
+   альтернативы, честная уверенность; никакого отображения hidden chain of thought.
+6. evals/: генерация predictions.json из Decision.scenario_ids, затем официальный
+   evaluate.py. Primary/full-match/multi-intent recall и RU/KK/mixed slices.
+7. Начать с одного компактного LLM-вызова на ход. Второй дорогой вызов только
+   после измеримого выигрыша и согласования бюджета с ролью 2.
+8. Подключить в service.py реальный провайдер совместно с интегратором;
+   поддержать явный scaffold для бесплатных тестов.
+
+## Критерии готовности
+
+- Любая новая реплика проходит реальный LLM в live; ID валидируются по каталогу.
+- 104 dev-реплики оценены без обучения/хардкода по ним; ошибки честно записаны.
+- Многотемный разговор сохраняет слоты и возвращается к parked теме.
+- Тесты offline с подставным клиентом не тратят API; live eval запускается явно.
+- Интерфейс ScenarioRouter.route и v1 wire contract совместимы с platform.
+
+## Статус
+
+- [ ] Прочитан контекст, запущен scaffold
+- [ ] Первый рабочий срез
+- [ ] Основные задачи реализованы
+- [ ] Проверки пройдены, ограничения записаны
+- [ ] Ветка запушена, HANDOFF.md обновлён

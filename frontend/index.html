@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RouteMap · Voice Router</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script type="module" src="/static/app.js"></script>
+</head>
+<body>
+  <header><span>HACKALEM AI · SCOUNDRELS</span><h1>RouteMap</h1>
+    <p>Голосовой маршрутизатор · рабочий каркас команды</p>
+    <p id="status" role="status">Подключение…</p>
+  </header>
+  <main>
+    <section aria-labelledby="customer-title">
+      <h2 id="customer-title">Клиент</h2>
+      <p class="notice">Режим scaffold: LLM и голос ещё не подключены. Здесь проверяется контракт API.</p>
+      <form id="turn-form">
+        <label for="language">Язык</label>
+        <select id="language"><option value="auto">Авто</option><option value="ru">Русский</option>
+          <option value="kk">Қазақша</option><option value="mixed">Смешанный</option></select>
+        <label for="text">Реплика</label>
+        <textarea id="text" maxlength="4000" required placeholder="Введите вопрос клиента"></textarea>
+        <button id="send" type="submit" disabled>Отправить текст</button>
+        <button type="button" disabled>Микрофон · задача участника 3</button>
+        <button id="reset" type="button">Новый разговор</button>
+      </form>
+      <h3>Ответ</h3><p id="reply" aria-live="polite">Ожидание реплики.</p>
+    </section>
+    <section aria-labelledby="supervisor-title">
+      <h2 id="supervisor-title">Супервизор</h2>
+      <p>Выбор сценария, альтернативы, темы и измеренные задержки.</p>
+      <pre id="trace">Трассировка появится после запроса.</pre>
+    </section>
+  </main>
+</body>
+</html>

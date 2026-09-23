@@ -1,0 +1,39 @@
+# Роль 2 — Voice / Backend / Integration
+
+Ветка: feat/voice. Зона: backend/platform/**.
+Начальное состояние: scaffold, интеграционные точки уже созданы; платные вызовы выключены.
+
+## Задачи по порядку
+
+1. Собрать первый text live path, подключив ScenarioRouter по общему контракту.
+2. voice/stt.py и voice/tts.py: серверные OpenAI-адаптеры, проверки размера/типа
+   аудио, timeouts, отсутствие ключей в браузере, RU/KK/mixed real smoke.
+3. Реализовать существующие voice HTTP endpoints. Streaming добавлять после
+   работающей upload→text→reply→audio цепочки; согласовать с UI.
+4. services/: исполнитель сценария, поиск в knowledge_base/mock_backend,
+   идентификация тестового клиента, слоты по slots.json, actions.json.
+   Дата "сегодня": 2026-10-01. Только synthetic data, не реальные банковские вызовы.
+5. actions.py: allowlist, preview, явное подтверждение, idempotency. Не исполнять
+   irreversible действие по одному confidence или по флагу UI.
+6. handoff.py: причина, транскрипт, темы, слоты, попытки; simulated handoff помечен.
+7. budget.py: учёт LLM/STT/TTS/retries, резерв бюджета до вызова, hard stop,
+   max concurrency. Согласовать usage callback с ролью 1.
+8. Измерить стадии на сервере и согласовать клиентский end-to-audio с ролью 3.
+9. Как интегратор: common contracts/docs/CI/compose; маленькие merges в main,
+   python -m pytest -q, clean-clone запуск. Общие файлы менять после уведомления команды.
+
+## Критерии готовности
+
+- Реальный голосовой API работает с микрофоном через frontend.
+- Фактические ответы опираются на данные Saqta; ошибки mock backend обработаны.
+- Confirmation и отмена проверены тестами, независимыми от LLM.
+- Live нельзя запустить с неработающим spend guard; ключи не попадают в ответы/логи.
+- Один запуск после установки; README отражает реальные возможности и ограничения.
+
+## Статус
+
+- [ ] Прочитан контекст, запущен scaffold
+- [ ] Первый рабочий срез
+- [ ] Основные задачи реализованы
+- [ ] Проверки пройдены, ограничения записаны
+- [ ] Ветка запушена, HANDOFF.md обновлён

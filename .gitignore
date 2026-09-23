@@ -1,0 +1,25 @@
+# Credentials (keys stay on each developer's machine)
+.env
+.env.*
+!.env.example
+*token*.txt
+*api-key*.txt
+gpt-api.txt
+*.pem
+*.key
+# Local environments and generated files
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+dist/
+artifacts/
+runtime/
+*.log
+.DS_Store
+.idea/
+.vscode/

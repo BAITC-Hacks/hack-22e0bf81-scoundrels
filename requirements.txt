@@ -1,0 +1,2 @@
+-r backend/router/requirements.txt
+-r backend/platform/requirements.txt
