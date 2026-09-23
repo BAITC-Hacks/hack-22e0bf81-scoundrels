@@ -2,37 +2,153 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>RouteMap · Voice Router</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RouteMap · Saqta Voice Router</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/styles.css">
   <script type="module" src="/static/app.js"></script>
 </head>
 <body>
-  <header><span>HACKALEM AI · SCOUNDRELS</span><h1>RouteMap</h1>
-    <p>Голосовой маршрутизатор · рабочий каркас команды</p>
-    <p id="status" role="status">Подключение…</p>
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-tag">HACKALEM AI · SCOUNDRELS</div>
+      <h1 class="brand-title">RouteMap <span id="brand-sub" class="brand-sub">· Saqta Voice Router</span></h1>
+      <p id="brand-desc" class="brand-desc">Интеллектуальный голосовой маршрутизатор с LLM-слоем принятия решений</p>
+    </div>
+    
+    <div class="header-controls">
+      <!-- Переключатель языка UI -->
+      <div class="ui-lang-switch">
+        <label for="ui-lang-select" class="visually-hidden">Язык интерфейса</label>
+        <select id="ui-lang-select" class="lang-switch-select">
+          <option value="ru">RU (Русский)</option>
+          <option value="kk">KK (Қазақша)</option>
+        </select>
+      </div>
+
+      <!-- Переключатель темы (Темная / Светлая) -->
+      <button id="theme-toggle-btn" type="button" class="theme-toggle-btn" title="Переключить тему">
+        <span id="theme-icon">🌙</span> <span id="theme-label">Тёмная</span>
+      </button>
+
+      <div class="system-status">
+        <div id="status-badge" class="status-pill status-connecting">Подключение…</div>
+        <div id="session-info" class="session-label">Сессия: —</div>
+      </div>
+    </div>
   </header>
-  <main>
-    <section aria-labelledby="customer-title">
-      <h2 id="customer-title">Клиент</h2>
-      <p class="notice">Режим scaffold: LLM и голос ещё не подключены. Здесь проверяется контракт API.</p>
-      <form id="turn-form">
-        <label for="language">Язык</label>
-        <select id="language"><option value="auto">Авто</option><option value="ru">Русский</option>
-          <option value="kk">Қазақша</option><option value="mixed">Смешанный</option></select>
-        <label for="text">Реплика</label>
-        <textarea id="text" maxlength="4000" required placeholder="Введите вопрос клиента"></textarea>
-        <button id="send" type="submit" disabled>Отправить текст</button>
-        <button type="button" disabled>Микрофон · задача участника 3</button>
-        <button id="reset" type="button">Новый разговор</button>
+
+  <main class="app-layout">
+    <!-- Левая колонка: Клиентский контур -->
+    <section class="panel customer-panel" aria-labelledby="customer-heading">
+      <div class="panel-header">
+        <h2 id="customer-heading">Клиентский канал</h2>
+        <div class="turn-counter-badge" id="turn-counter">Ход 0 / 10</div>
+      </div>
+
+      <div id="notice-banner" class="banner banner-scaffold">
+        <span class="banner-icon">ℹ️</span>
+        <span id="notice-text">Режим scaffold: LLM и голосовые endpoints ещё не подключены. Проверяется контракт API.</span>
+      </div>
+
+      <form id="turn-form" class="customer-form">
+        <div class="form-row">
+          <label for="language-select" id="language-label" class="form-label">Язык запроса</label>
+          <select id="language-select" class="form-select">
+            <option value="auto">Автоопределение (Auto)</option>
+            <option value="ru">Русский (RU)</option>
+            <option value="kk">Қазақша (KK)</option>
+            <option value="mixed">Смешанный (RU + KK)</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="text-input" class="form-label">Реплика клиента</label>
+          <textarea 
+            id="text-input" 
+            class="form-textarea" 
+            maxlength="4000" 
+            rows="3" 
+            required 
+            placeholder="Введите вопрос клиента (например: «Хочу рассчитать страховку ОГПО в Алматы»)"></textarea>
+        </div>
+
+        <div class="actions-row">
+          <button id="send-btn" type="submit" class="btn btn-primary" disabled>
+            <span class="btn-icon">➤</span> <span id="send-btn-label">Отправить текст</span>
+          </button>
+          
+          <button id="mic-btn" type="button" class="btn btn-mic" disabled title="Удерживайте для записи (Push-to-Talk) или нажмите">
+            <span class="btn-icon">🎙️</span> <span id="mic-label">Микрофон (PTT)</span>
+          </button>
+          
+          <button id="reset-btn" type="button" class="btn btn-secondary">
+            <span class="btn-icon">🔄</span> <span id="reset-btn-label">Новый разговор</span>
+          </button>
+        </div>
+
+        <div id="input-error" class="error-msg" role="alert" hidden></div>
       </form>
-      <h3>Ответ</h3><p id="reply" aria-live="polite">Ожидание реплики.</p>
+
+      <!-- Блок ответа ассистента -->
+      <div class="assistant-response-area" aria-labelledby="reply-heading">
+        <h3 id="reply-heading" class="sub-heading">Ответ ассистента Saqta</h3>
+        <div id="assistant-bubble" class="chat-bubble" aria-live="polite">
+          <p id="reply-text" class="bubble-content">Ожидание реплики клиента…</p>
+        </div>
+        <div id="audio-player-container" class="audio-player-box" hidden>
+          <audio id="tts-audio-player" controls preload="auto"></audio>
+        </div>
+      </div>
+
+      <!-- Дополнительные инструменты: Replay и образцы датасета -->
+      <div class="demo-tools-box">
+        <div id="replay-tools-heading" class="sub-heading">Инструменты Replay и образцы</div>
+        <div class="demo-actions-row">
+          <button id="export-session-btn" type="button" class="btn btn-secondary btn-sm" disabled>
+            💾 Экспорт сессии
+          </button>
+          <label class="btn btn-secondary btn-sm file-input-label">
+            <span id="import-session-label">📂 Загрузить Replay</span>
+            <input id="import-session-input" type="file" accept=".json" hidden>
+          </label>
+          <select id="dataset-sample-select" class="sample-select">
+            <option value="">Образцы датасета (dialogs_sample)</option>
+            <option value="D03">D03: Смена темы (SC17 → SC27 → SC18)</option>
+            <option value="D05">D05: Уточнение (SYS_UNCLEAR)</option>
+            <option value="D06">D06: Жалоба и оператор (SC35 → SC37)</option>
+          </select>
+        </div>
+      </div>
     </section>
-    <section aria-labelledby="supervisor-title">
-      <h2 id="supervisor-title">Супервизор</h2>
-      <p>Выбор сценария, альтернативы, темы и измеренные задержки.</p>
-      <pre id="trace">Трассировка появится после запроса.</pre>
+
+    <!-- Правая колонка: Панель супервизора -->
+    <section class="panel supervisor-panel" aria-labelledby="supervisor-heading">
+      <div class="panel-header">
+        <h2 id="supervisor-heading">Панель супервизора (Explainability)</h2>
+        <div class="supervisor-actions">
+          <button id="toggle-json-btn" type="button" class="btn btn-ghost btn-sm">Показать raw JSON</button>
+        </div>
+      </div>
+
+      <!-- Контейнер для задержек и водопада метрик -->
+      <div id="metrics-container" class="metrics-area"></div>
+
+      <!-- Контейнер для структурированной панели решений -->
+      <div id="supervisor-trace" class="supervisor-trace-area">
+        <div class="supervisor-empty">
+          <p class="muted-text">Ожидание реплики. Маршрутизация, стек тем и обоснование отобразятся здесь.</p>
+        </div>
+      </div>
+
+      <!-- Сырой JSON для отладки -->
+      <pre id="raw-json-trace" class="raw-trace" hidden></pre>
     </section>
   </main>
+
+  <footer class="app-footer">
+    <span>Saqta Insurance Voice Router · HackAlem AI · Team Scoundrels</span>
+    <span>Контракт API: <a href="/docs" target="_blank" rel="noopener">v1 OpenAPI</a></span>
+  </footer>
 </body>
 </html>
