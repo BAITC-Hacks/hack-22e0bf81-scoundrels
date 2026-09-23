@@ -1,8 +1,22 @@
-"""Stable entry point consumed by backend.platform. Replace internals, not signature."""
+"""Stable entry point consumed by backend.platform."""
+from typing import Protocol
+
 from contracts.models import Decision, RouteResult, RouterContext, Scenario
+from backend.router.conversation import advance_conversation
+
+
+class RouterProvider(Protocol):
+    async def route(self, context: RouterContext, catalog: list[Scenario]) -> RouteResult: ...
+
 
 class ScenarioRouter:
+    def __init__(self, provider: RouterProvider | None = None):
+        self.provider = provider
+
     async def route(self, context: RouterContext, catalog: list[Scenario]) -> RouteResult:
+        if self.provider is not None:
+            result = await self.provider.route(context, catalog)
+            return advance_conversation(context, result, catalog)
         # Intentional scaffold: no classifier, no fake LLM, no test-phrase mapping.
         question = "Какой вопрос вы хотите решить?"
         return RouteResult(

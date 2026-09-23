@@ -1,1 +1,2 @@
 openai==3.16.2
+pydantic-settings==2.15.0
