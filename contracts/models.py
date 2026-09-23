@@ -2,7 +2,7 @@
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Language = Literal["ru", "kk", "mixed", "auto"]
+Language = Literal["ru", "kk", "en", "mixed", "auto"]
 
 class Contract(BaseModel):
     model_config = ConfigDict(extra="forbid")

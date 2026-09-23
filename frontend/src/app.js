@@ -291,9 +291,11 @@ async function initSession() {
  * @param {string} text
  * @param {string} lang
  * @param {number|null} [speechEndMs=null]
+ * @param {boolean} [fromRecording=false] Continue while STT owns the busy state.
+ * @param {number|null} [sttMs=null] Server transcription duration, if measured.
  */
-async function executeTurn(text, lang, speechEndMs = null) {
-  if (!text || isBusy || !currentSessionId) return;
+async function executeTurn(text, lang, speechEndMs = null, fromRecording = false, sttMs = null) {
+  if (!text || (isBusy && !fromRecording) || !currentSessionId) return;
 
   const dict = getLocale(currentUiLang);
 
@@ -308,6 +310,7 @@ async function executeTurn(text, lang, speechEndMs = null) {
   try {
     // 1. Send turn to router
     const result = await sendTurn(currentSessionId, text, lang);
+    if (typeof sttMs === "number") result.timings.stt_ms = sttMs;
     currentTurnCount += 1;
     updateTurnCounter();
 
@@ -317,7 +320,7 @@ async function executeTurn(text, lang, speechEndMs = null) {
     // 3. Attempt TTS speech synthesis if text is available
     if (result.assistant_text) {
       try {
-        const { audioBlob, ttsMs } = await synthesizeSpeech(result.assistant_text, result.language);
+        const { audioBlob, ttsMs } = await synthesizeSpeech(result.assistant_text, result.language, currentSessionId);
         if (typeof ttsMs === "number") {
           result.timings.tts_first_byte_ms = ttsMs;
         }
@@ -422,10 +425,11 @@ voiceRecorder.onAudioReady = async (audioBlob, stopTimestamp) => {
   setBusy(true);
   const dict = getLocale(currentUiLang);
   try {
-    const transcriptResult = await transcribeAudio(audioBlob);
+    const transcriptResult = await transcribeAudio(audioBlob, "speech.webm", currentSessionId);
     if (transcriptResult.text) {
       textInput.value = transcriptResult.text;
-      await executeTurn(transcriptResult.text, transcriptResult.language || languageSelect.value, stopTimestamp);
+      await executeTurn(transcriptResult.text, transcriptResult.language || languageSelect.value,
+                        stopTimestamp, true, transcriptResult.stt_ms);
     } else {
       showError(dict.sttEmptyError);
     }
@@ -450,6 +454,8 @@ micBtn.addEventListener("pointerdown", async (e) => {
   showError("");
   try {
     await voiceRecorder.start();
+    // Permission may resolve after pointerup; do not leave the microphone open.
+    if (!pttPointerDown) voiceRecorder.stop();
   } catch (err) {
     pttPointerDown = false;
   }
@@ -459,6 +465,17 @@ window.addEventListener("pointerup", (e) => {
   if (pttPointerDown) {
     pttPointerDown = false;
     voiceRecorder.stop();
+  }
+});
+
+// Space/Enter produce a keyboard click (detail=0): toggle recording accessibly.
+micBtn.addEventListener("click", async (e) => {
+  if (e.detail !== 0 || isBusy || !currentSessionId || currentTurnCount >= MAX_TURNS) return;
+  if (voiceRecorder.isRecording) {
+    voiceRecorder.stop();
+  } else {
+    showError("");
+    try { await voiceRecorder.start(); } catch { /* onError already displayed */ }
   }
 });
 
@@ -556,10 +573,10 @@ resetBtn.addEventListener("click", initSession);
   const dict = getLocale("ru");
   try {
     const healthData = await health();
-    if (healthData.capabilities && healthData.capabilities.routing) {
-      currentNoticeType = "ready";
+    if (healthData.capabilities && healthData.capabilities.llm_routing) {
+      currentNoticeType = "live";
       noticeBanner.className = "banner banner-online";
-      noticeText.textContent = dict.serverReadyNotice;
+      noticeText.textContent = dict.liveNotice;
     }
     await initSession();
   } catch (err) {

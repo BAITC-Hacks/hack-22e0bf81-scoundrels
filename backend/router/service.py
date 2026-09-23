@@ -30,3 +30,12 @@ class ScenarioRouter:
             ),
             topics=context.topics,
         )
+
+    async def route_with_language(
+        self, context: RouterContext, catalog: list[Scenario]
+    ) -> tuple[RouteResult, str]:
+        """Return the validated route and LLM-detected language in one paid call."""
+        if self.provider is not None and hasattr(self.provider, "route_detailed"):
+            detailed = await self.provider.route_detailed(context, catalog)
+            return advance_conversation(context, detailed.result, catalog), detailed.detected_language
+        return await self.route(context, catalog), context.language

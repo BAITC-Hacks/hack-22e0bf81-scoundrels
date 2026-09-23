@@ -10,12 +10,14 @@ Shared owner: role 2. Public v1 shapes are fixed before parallel work.
 - POST /api/sessions/{id}/turns → TurnResponse.
   Body: {"text":"Полис керек","language":"mixed"}.
   Errors: 404 unknown session, 409 after 10 user turns, 422 invalid input.
-- POST /api/voice/transcribe → multipart field file; target response Transcript.
-  Scaffold returns 501. Provider belongs to role 1 (backend/voice); endpoint to role 2.
-  Language auto-detection belongs to STT/triage.
-- POST /api/voice/synthesize → SpeechRequest; target response audio/mpeg bytes.
-  Scaffold returns 501. TTS provider belongs to role 1; endpoint to role 2.
-  API key never goes to browser.
+- POST /api/voice/transcribe → multipart field file; response Transcript.
+  Scaffold returns 501; live validates MIME/1 MiB upload then calls STT.
+  Language auto-detection belongs to STT/triage. Optional `X-Session-ID` ties
+  the reservation to the per-session demo budget.
+- POST /api/voice/synthesize → SpeechRequest; response audio/mpeg bytes.
+  Scaffold returns 501; live adds X-TTS-First-Byte-Ms/X-TTS-Total-Ms.
+  Optional `X-Session-ID` ties the reservation to the per-session demo budget;
+  without it, only the run-wide limit applies. API key never goes to browser.
 - GET / → frontend; /static/* → frontend/src/*.
 
 First complete voice integration uses upload/transcribe → turns → synthesize/playback.
@@ -34,6 +36,8 @@ selected_scenario_id = primary (first list item) or null if no route selected.
 action is next step, distinct from classification: SC37 may have action=transfer;
 SYS_UNCLEAR may have action=clarify. Classification and execution are separate.
 Scaffold returns an empty ID list + explicit unavailable certainty, never a fake prediction.
+Live returns RU/KK/EN/mixed language as detected by the LLM; English is an
+additive extension of the original RU/KK/mixed contract.
 clarify requires clarification_question. Alternatives are not selected intentions.
 certainties are qualitative self-reports, NOT calibrated probabilities.
 If numeric confidence is later added, label it uncalibrated until validated.

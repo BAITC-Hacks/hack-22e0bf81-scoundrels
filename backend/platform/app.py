@@ -1,29 +1,70 @@
+"""FastAPI composition for the safe scaffold and bounded live demo."""
+
+import asyncio
 from time import perf_counter
 from uuid import uuid4
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+
 from contracts.models import (
     RouterContext, SessionCreated, SpeechRequest, Timings, Transcript,
     TurnInput, TurnRecord, TurnResponse,
 )
 from backend.router.catalog import load_catalog, validate_decision_ids
+from backend.router.providers.openai_provider import OpenAIRouterProvider, RouterProviderError
 from backend.router.service import ScenarioRouter
+from backend.voice.stt import OpenAITranscriber, TranscriptionError
+from backend.voice.tts import OpenAISynthesizer, SpeechError
 from .config import ROOT, Settings
+from .services.budget import BudgetExceeded, DemoBudget
+from .services.responses import ReplyComposer
 from .sessions import SessionStore
 
-def create_app() -> FastAPI:
-    settings = Settings()
-    app = FastAPI(title="RouteMap · Voice Router", version="0.1.0")
+
+MAX_UPLOAD_BYTES = 1024 * 1024
+ALLOWED_AUDIO_TYPES = {
+    "audio/webm", "audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp3",
+    "audio/mp4", "audio/ogg", "audio/flac", "audio/x-m4a",
+}
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or Settings()
+    app = FastAPI(title="RouteMap · Voice Router", version="0.2.0")
+    app.state.settings = settings
     app.state.sessions = SessionStore()
-    app.state.router = ScenarioRouter()
     app.state.catalog = load_catalog(ROOT / "case_2/voice_router_dataset/scenarios.json")
+    app.state.replies = ReplyComposer(ROOT / "case_2/voice_router_dataset/mock_backend.json")
+    app.state.budget = None
+    app.state.stt = None
+    app.state.tts = None
+    app.state.paid_slots = asyncio.Semaphore(2)
+    if settings.app_mode == "live":
+        key = settings.openai_api_key.get_secret_value()
+        provider = OpenAIRouterProvider(
+            model=settings.openai_router_model, api_key=key, timeout_seconds=12,
+            max_output_tokens=600, reasoning_effort=settings.openai_router_reasoning_effort,
+            prompt_cache_key="saqta-router-v1",
+        )
+        app.state.router = ScenarioRouter(provider=provider)
+        app.state.stt = OpenAITranscriber(model=settings.openai_stt_model, api_key=key)
+        app.state.tts = OpenAISynthesizer(
+            model=settings.openai_tts_model, api_key=key, voice=settings.openai_tts_voice,
+        )
+        app.state.budget = DemoBudget(
+            run_usd=settings.run_budget_usd, session_usd=settings.session_budget_usd,
+        )
+    else:
+        app.state.router = ScenarioRouter()
 
     @app.get("/api/health")
     async def health():
+        live = settings.app_mode == "live"
         return {
             "status": "ok", "mode": settings.app_mode, "schema_version": "1.0",
-            "capabilities": {"llm_routing": False, "stt": False, "tts": False},
+            "capabilities": {"llm_routing": live, "stt": live, "tts": live},
             "catalog_count": len(app.state.catalog),
         }
 
@@ -48,33 +89,98 @@ def create_app() -> FastAPI:
                 history=session.history, topics=session.topics,
             )
             route_started = perf_counter()
-            result = await app.state.router.route(context, app.state.catalog)
+            if settings.app_mode == "live":
+                try:
+                    async with app.state.paid_slots:
+                        await app.state.budget.reserve("router", session_id=session_id)
+                        result, detected_language = await app.state.router.route_with_language(
+                            context, app.state.catalog
+                        )
+                except BudgetExceeded as exc:
+                    raise HTTPException(429, str(exc)) from exc
+                except RouterProviderError as exc:
+                    raise HTTPException(502, "LLM routing is temporarily unavailable") from exc
+            else:
+                result = await app.state.router.route(context, app.state.catalog)
+                detected_language = payload.language
             try:
                 validate_decision_ids(result, app.state.catalog)
             except ValueError as exc:
                 raise HTTPException(502, "Router returned invalid scenario ids") from exc
             route_ms = (perf_counter() - route_started) * 1000
-            # No business actions implemented; scaffold only asks for clarification.
-            reply = result.decision.clarification_question or "Передаю вопрос оператору."
+            if detected_language not in {"ru", "kk", "en", "mixed"}:
+                detected_language = payload.language
+            if settings.app_mode == "live":
+                reply = app.state.replies.compose(
+                    result.decision, app.state.catalog, detected_language, payload.text,
+                )
+            else:
+                reply = result.decision.clarification_question or "Передаю вопрос оператору."
             response = TurnResponse(
-                session_id=session_id, turn_id=str(uuid4()), mode="scaffold",
-                transcript=payload.text, language=payload.language,
+                session_id=session_id, turn_id=str(uuid4()), mode=settings.app_mode,
+                transcript=payload.text, language=detected_language,
                 assistant_text=reply, decision=result.decision, topics=result.topics,
-                timings=Timings(router_ms=route_ms, backend_total_ms=(perf_counter()-started)*1000),
+                timings=Timings(
+                    router_ms=round(route_ms, 1),
+                    backend_total_ms=round((perf_counter() - started) * 1000, 1),
+                ),
             )
             session.history.append(TurnRecord(
-                user_text=payload.text, assistant_text=reply, decision=result.decision))
+                user_text=payload.text, assistant_text=reply, decision=result.decision,
+            ))
             session.topics = result.topics
             return response
 
     @app.post("/api/voice/transcribe", response_model=Transcript)
-    async def transcribe(file: UploadFile = File(...)):
-        await file.close()
-        raise HTTPException(501, "STT provider: owner 1; HTTP integration: owner 2; not connected yet")
+    async def transcribe(file: UploadFile = File(...), session_id: str | None = Header(None, alias="X-Session-ID")):
+        if settings.app_mode != "live":
+            await file.close()
+            raise HTTPException(501, "STT is disabled in scaffold mode")
+        mime = (file.content_type or "").split(";", 1)[0].lower()
+        if mime not in ALLOWED_AUDIO_TYPES:
+            await file.close()
+            raise HTTPException(415, "Unsupported audio content type")
+        try:
+            audio = await file.read(MAX_UPLOAD_BYTES + 1)
+        finally:
+            await file.close()
+        if len(audio) > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, "Audio exceeds 1 MiB demo limit")
+        if not audio:
+            raise HTTPException(422, "Audio is empty")
+        try:
+            async with app.state.paid_slots:
+                await app.state.budget.reserve("stt", session_id=session_id)
+                result = await app.state.stt.transcribe(
+                    audio, filename=file.filename or "recording.webm", language_hint="mixed",
+                )
+        except BudgetExceeded as exc:
+            raise HTTPException(429, str(exc)) from exc
+        except TranscriptionError as exc:
+            raise HTTPException(502, "Audio transcription failed") from exc
+        return Transcript(text=result.text, language=result.language, stt_ms=result.stt_ms)
 
     @app.post("/api/voice/synthesize", responses={200: {"content": {"audio/mpeg": {}}}})
-    async def synthesize(payload: SpeechRequest):
-        raise HTTPException(501, "TTS provider: owner 1; HTTP integration: owner 2; not connected yet")
+    async def synthesize(payload: SpeechRequest, session_id: str | None = Header(None, alias="X-Session-ID")):
+        if settings.app_mode != "live":
+            raise HTTPException(501, "TTS is disabled in scaffold mode")
+        if len(payload.text) > 500:
+            raise HTTPException(422, "Demo speech is limited to 500 characters")
+        try:
+            async with app.state.paid_slots:
+                await app.state.budget.reserve("tts", session_id=session_id)
+                result = await app.state.tts.synthesize(payload.text, language=payload.language)
+        except BudgetExceeded as exc:
+            raise HTTPException(429, str(exc)) from exc
+        except SpeechError as exc:
+            raise HTTPException(502, "Speech generation failed") from exc
+        return Response(
+            content=result.audio, media_type=result.content_type,
+            headers={
+                "X-TTS-First-Byte-Ms": str(result.tts_first_byte_ms),
+                "X-TTS-Total-Ms": str(result.tts_total_ms),
+            },
+        )
 
     @app.get("/")
     async def index():
@@ -82,5 +188,6 @@ def create_app() -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=ROOT / "frontend" / "src"), name="static")
     return app
+
 
 app = create_app()

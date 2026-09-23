@@ -21,6 +21,18 @@ def test_frontend_files_exist():
     assert (SRC_DIR / "i18n.js").is_file()
     assert (SRC_DIR / "styles.css").is_file()
 
+
+def test_live_banner_uses_health_contract_capability_name():
+    app_js = (SRC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "healthData.capabilities.llm_routing" in app_js
+    assert "healthData.capabilities.routing" not in app_js
+
+
+def test_voice_turn_passes_measured_stt_duration_into_waterfall():
+    app_js = (SRC_DIR / "app.js").read_text(encoding="utf-8")
+    assert 'result.timings.stt_ms = sttMs' in app_js
+    assert 'stopTimestamp, true, transcriptResult.stt_ms' in app_js
+
 def test_catalog_matches_official_scenarios():
     """Verify that frontend/src/catalog.js covers all 40 official scenarios."""
     scenarios_json_path = ROOT_DIR / "case_2" / "voice_router_dataset" / "scenarios.json"

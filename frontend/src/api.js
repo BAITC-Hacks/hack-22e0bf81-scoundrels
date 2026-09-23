@@ -107,7 +107,7 @@ export async function sendTurn(sessionId, text, language = "auto") {
  * @param {string} [filename='speech.webm']
  * @returns {Promise<{ text: string, language: 'ru'|'kk'|'mixed'|'auto', stt_ms: number }>}
  */
-export async function transcribeAudio(audioBlob, filename = "speech.webm") {
+export async function transcribeAudio(audioBlob, filename = "speech.webm", sessionId = null) {
   if (!audioBlob) {
     throw new ApiError(400, "Аудиофайл не передан");
   }
@@ -119,6 +119,7 @@ export async function transcribeAudio(audioBlob, filename = "speech.webm") {
   try {
     response = await fetch("/api/voice/transcribe", {
       method: "POST",
+      headers: sessionId ? { "X-Session-ID": sessionId } : {},
       body: formData,
     });
   } catch (netErr) {
@@ -149,7 +150,7 @@ export async function transcribeAudio(audioBlob, filename = "speech.webm") {
  * @param {'auto'|'ru'|'kk'|'mixed'} [language='auto']
  * @returns {Promise<{ audioBlob: Blob, ttsMs: number|null }>}
  */
-export async function synthesizeSpeech(text, language = "auto") {
+export async function synthesizeSpeech(text, language = "auto", sessionId = null) {
   const cleanText = (text || "").trim();
   if (!cleanText) {
     throw new ApiError(422, "Текст для озвучивания не может быть пустым");
@@ -159,7 +160,7 @@ export async function synthesizeSpeech(text, language = "auto") {
   try {
     response = await fetch("/api/voice/synthesize", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(sessionId ? { "X-Session-ID": sessionId } : {}) },
       body: JSON.stringify({ text: cleanText, language: language || "auto" }),
     });
   } catch (netErr) {

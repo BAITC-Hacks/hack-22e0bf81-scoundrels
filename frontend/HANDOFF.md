@@ -1,10 +1,12 @@
 # Handoff — роль 3 (Frontend / UX)
 
 Ветка: `feat/frontend`
-Статус: Реализация и полировка интерфейса полностью завершены. Все задачи из `TASKS.md` выполнены. Контракт `contracts/models.py` строго сохранен. Изменения ограничены рабочей зоной `frontend/`. Ветка готова к слиянию в `main`.
+Исторический handoff ветки `feat/frontend`. Она уже слита в `main`; live-путь
+проверен в браузере, а текущие ограничения описаны в корневом `README.md`.
 
 > [!TIP]
-> Подробная техническая спецификация для интегратора (роль 2) и AI-агента бэкенда оформлена в файле [`frontend/INTEGRATION_GUIDE.md`](file:///c:/Users/danik/VMfolder/Hakaton/hack-22e0bf81-scoundrels/frontend/INTEGRATION_GUIDE.md).
+> Подробная техническая спецификация для интегратора оформлена в
+> [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md).
 
 ---
 
