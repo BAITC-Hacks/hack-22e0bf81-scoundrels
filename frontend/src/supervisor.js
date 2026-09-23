@@ -6,6 +6,17 @@
 
 import { getScenarioMeta } from "./catalog.js";
 
+/** Label only explicitly known live responses as API-backed. */
+export function getModeBadge(mode) {
+  switch (mode) {
+    case "live": return { text: "LIVE LLM", variant: "success" };
+    case "dataset_sample": return { text: "DEMO / NO API", variant: "info" };
+    case "replay": return { text: "REPLAY / NO API", variant: "info" };
+    case "scaffold": return { text: "SCAFFOLD MODE", variant: "warning" };
+    default: return { text: "UNKNOWN MODE", variant: "muted" };
+  }
+}
+
 /**
  * Creates an element with text content and optional class names
  * @param {string} tag
@@ -55,10 +66,8 @@ export function renderSupervisorPanel(container, turnResponse, lang = "ru") {
   // 1. Session & Turn Metadata Bar
   const metaBar = el("div", "", "trace-meta-bar");
   
-  const modeBadge = createBadge(
-    isScaffold ? "SCAFFOLD MODE" : "LIVE LLM",
-    isScaffold ? "warning" : "success"
-  );
+  const badge = getModeBadge(mode);
+  const modeBadge = createBadge(badge.text, badge.variant);
   metaBar.appendChild(modeBadge);
 
   if (turn_id) {

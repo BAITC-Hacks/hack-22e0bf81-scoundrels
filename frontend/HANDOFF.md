@@ -1,5 +1,9 @@
 # Handoff — роль 3 (Frontend / UX)
 
+UI hotfix в main: новый разговор восстанавливает реальный live/scaffold баннер
+после образца/replay; их badges явно показывают NO API, а не LIVE LLM.
+Добавлены 3 regression-теста, итог: 13 JS + 85 Python, без платных вызовов.
+
 Обновление `feat/try_upgr_perf`: AudioPlayer воспроизводит MP3 через MediaSource
 до EOF; неподдерживаемые браузеры буферизуют тот же запрос. Замер PTT использует
 `playing`, панель маршрута обновляется до TTS. `performance.html` сравнивает два

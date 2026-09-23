@@ -77,6 +77,7 @@ let currentTheme = localStorage.getItem("routemap_theme") || "dark";
 // System status tracking for bilingual updates
 let currentConnectionStatus = "connecting"; // 'connecting' | 'online' | 'error' | 'unavailable'
 let currentNoticeType = "scaffold"; // 'scaffold' | 'live' | 'ready' | 'replay' | 'sample'
+let serverNoticeType = "scaffold"; // Preserve actual server mode while viewing samples/replays.
 let currentSampleTitle = "";
 
 /**
@@ -263,6 +264,10 @@ async function initSession() {
 
   const dict = getLocale(currentUiLang);
   updateTurnCounter();
+  currentNoticeType = serverNoticeType;
+  currentSampleTitle = "";
+  noticeBanner.className = serverNoticeType === "live" ? "banner banner-online" : "banner banner-scaffold";
+  noticeText.textContent = serverNoticeType === "live" ? dict.liveNotice : dict.scaffoldNotice;
   replyText.textContent = dict.waitingReply;
   audioPlayer.stop();
   audioPlayer.onPlaybackStart = null;
@@ -644,6 +649,7 @@ resetBtn.addEventListener("click", initSession);
   const dict = getLocale("ru");
   try {
     const healthData = await health();
+    serverNoticeType = healthData.capabilities?.llm_routing ? "live" : "scaffold";
     if (healthData.capabilities && healthData.capabilities.llm_routing) {
       currentNoticeType = "live";
       noticeBanner.className = "banner banner-online";

@@ -88,3 +88,19 @@ test("a late playing callback cannot write timings into a newer operation", asyn
   run("const obsoleteCallback = audioPlayer.onPlaybackStart; operationEpoch++; obsoleteCallback(100);");
   assert.equal(run("sessionHistory[0].timings.end_to_audio_ms"), undefined);
 });
+
+test("new conversation restores real server banner after sample or replay", async () => {
+  for (const serverMode of ["live", "scaffold"]) {
+    for (const viewedMode of ["sample", "replay"]) {
+      const { run, node } = setup({ getLocale: () => new Proxy({
+        liveNotice: "LIVE", scaffoldNotice: "OFFLINE",
+      }, { get: (target, key) => target[key] ?? (() => "label") }) });
+      run(`serverNoticeType = "${serverMode}"; currentNoticeType = "${viewedMode}"; currentSampleTitle = "Old sample";`);
+      await run("initSession()");
+      assert.equal(run("currentNoticeType"), serverMode);
+      assert.equal(run("currentSampleTitle"), "");
+      assert.equal(node("#notice-text").textContent, serverMode === "live" ? "LIVE" : "OFFLINE");
+      assert.equal(node("#notice-banner").className, serverMode === "live" ? "banner banner-online" : "banner banner-scaffold");
+    }
+  }
+});
