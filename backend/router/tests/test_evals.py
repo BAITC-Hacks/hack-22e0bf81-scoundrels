@@ -48,15 +48,17 @@ def test_eval_writes_only_own_scope(tmp_path):
 
 def test_eval_budget_reserve_settle_unknown_and_call_limit():
     async def scenario():
-        budget = EvalBudget(max_usd=Decimal("1"), input_rate=Decimal("10"), output_rate=Decimal("20"), max_calls=2)
+        budget = EvalBudget(max_usd=Decimal("1"), input_rate=Decimal("10"),
+                            cached_input_rate=Decimal("1"), cache_write_rate=Decimal("12.5"),
+                            output_rate=Decimal("20"), max_calls=2)
         estimate = RequestEstimate("model", 10000, 1000)
         first = await budget.authorize(estimate)
-        assert budget.charged_or_reserved == Decimal("0.12")
-        await budget.settle(first, TokenUsage(1000, 100))
-        assert budget.charged_or_reserved == Decimal("0.012")
+        assert budget.charged_or_reserved == Decimal("0.145")
+        await budget.settle(first, TokenUsage(1000, 100, cached_input_tokens=800))
+        assert budget.charged_or_reserved == Decimal("0.0053")
         second = await budget.authorize(estimate)
         await budget.settle(second, None)
-        assert budget.charged_or_reserved == Decimal("0.132")
+        assert budget.charged_or_reserved == Decimal("0.1503")
         with pytest.raises(RuntimeError, match="budget_exceeded"):
             await budget.authorize(estimate)
     asyncio.run(scenario())
@@ -64,13 +66,16 @@ def test_eval_budget_reserve_settle_unknown_and_call_limit():
 
 def test_budget_rejects_oversized_reservation_and_nonfinite_rates():
     async def scenario():
-        budget = EvalBudget(max_usd=Decimal("0.01"), input_rate=Decimal("10"), output_rate=Decimal("20"), max_calls=10)
+        budget = EvalBudget(max_usd=Decimal("0.01"), input_rate=Decimal("10"),
+                            cached_input_rate=Decimal("1"), cache_write_rate=Decimal("12.5"),
+                            output_rate=Decimal("20"), max_calls=10)
         with pytest.raises(RuntimeError):
             await budget.authorize(RequestEstimate("model", 10000, 1000))
         assert budget.calls == 0
     asyncio.run(scenario())
     with pytest.raises(ValueError):
-        EvalBudget(max_usd=Decimal("NaN"), input_rate=Decimal(1), output_rate=Decimal(1), max_calls=1)
+        EvalBudget(max_usd=Decimal("NaN"), input_rate=Decimal(1), cached_input_rate=Decimal(1),
+                   cache_write_rate=Decimal(1), output_rate=Decimal(1), max_calls=1)
 
 
 def test_demo_main_scenario_through_real_sdk_mock_transport():

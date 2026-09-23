@@ -88,6 +88,8 @@ def parser():
     result.add_argument("--max-requests", type=int)
     result.add_argument("--max-usd", type=Decimal)
     result.add_argument("--input-usd-per-million", type=Decimal)
+    result.add_argument("--cached-input-usd-per-million", type=Decimal)
+    result.add_argument("--cache-write-usd-per-million", type=Decimal)
     result.add_argument("--output-usd-per-million", type=Decimal)
     return result
 
@@ -104,10 +106,13 @@ async def run(args) -> int:
     catalog = load_catalog(DATASET / "scenarios.json")
     provider, budget = None, None
     if args.mode == "live":
-        if not args.allow_paid or any(v is None for v in (args.max_requests, args.max_usd,
-                args.input_usd_per_million, args.output_usd_per_million)):
-            raise ValueError("Live requires --allow-paid, --max-requests, --max-usd and both token rates")
+        rates = (args.input_usd_per_million, args.cached_input_usd_per_million,
+                 args.cache_write_usd_per_million, args.output_usd_per_million)
+        if not args.allow_paid or any(v is None for v in (args.max_requests, args.max_usd, *rates)):
+            raise ValueError("Live requires paid opt-in, request/USD caps and all four token rates")
         budget = EvalBudget(max_usd=args.max_usd, input_rate=args.input_usd_per_million,
+                            cached_input_rate=args.cached_input_usd_per_million,
+                            cache_write_rate=args.cache_write_usd_per_million,
                             output_rate=args.output_usd_per_million, max_calls=args.max_requests)
         # Only the explicit live CLI loads local secrets. Never prints them.
         from dotenv import load_dotenv

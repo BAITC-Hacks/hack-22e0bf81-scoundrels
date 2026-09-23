@@ -15,12 +15,14 @@
 После согласования model ID, актуальных цен и суммы с владельцем бюджета:
 
 ```text
-python -m backend.router.evals.run --mode live --allow-paid --max-requests 104 --limit 104 --max-usd <согласованная-сумма> --input-usd-per-million <цена-входа> --output-usd-per-million <цена-выхода> --output-dir backend/router/artifacts/live-dev
+python -m backend.router.evals.run --mode live --allow-paid --max-requests 104 --limit 104 --max-usd <согласованная-сумма> --input-usd-per-million <цена-входа> --cached-input-usd-per-million <цена-кэш-входа> --cache-write-usd-per-million <цена-записи-кэша> --output-usd-per-million <цена-выхода> --output-dir backend/router/artifacts/live-dev
 ```
 
 Параметры в угловых скобках нужно заменить; фиксированных цен/модели в коде нет.
 Предварительно OPENAI_API_KEY и OPENAI_ROUTER_MODEL задаются в локальном .env или env.
 CLI ограничивает и число попыток, и резервируемую сумму; retries тоже расходуют лимит.
+Для uncached input резервируется большая из цен обычного входа и записи кэша,
+поскольку API usage не выделяет cache-write tokens отдельным полем.
 Неизвестный расход после сбоя остаётся зарезервирован. На первой ошибке сбор останавливается,
 частичные результаты сохраняются; код возврата 2. Нет продолжения на 103 дорогих ошибках.
 Для holdout добавить `--dataset backend/router/data/holdout_utterances.json --limit 12`

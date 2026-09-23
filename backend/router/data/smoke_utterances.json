@@ -1,0 +1,40 @@
+{
+  "notice": "Small author-written live smoke set. It is not the official dev set or a judge score.",
+  "utterances": [
+    {
+      "id": "S01",
+      "text": "Оплата прошла вчера, но новый полис так и не появился ни в приложении, ни на почте.",
+      "lang": "ru",
+      "type": "single",
+      "expected": ["SC30"]
+    },
+    {
+      "id": "S02",
+      "text": "Дәрігерге жазылмаймын, тек Алматыда ДМС қабылдайтын клиникаларды айтыңызшы.",
+      "lang": "kk",
+      "type": "single",
+      "expected": ["SC23"]
+    },
+    {
+      "id": "S03",
+      "text": "Сейчас на дороге произошло ДТП, адамдар зардап шеккен жоқ. Ещё потом хочу продлить полис.",
+      "lang": "mixed",
+      "type": "multi_intent",
+      "expected": ["SC11", "SC27"]
+    },
+    {
+      "id": "S04",
+      "text": "Маған өмірді сақтандыру керек, басқа өнімдер қызықтырмайды.",
+      "lang": "kk",
+      "type": "out_of_scope",
+      "expected": ["SYS_OUT_OF_SCOPE"]
+    },
+    {
+      "id": "S05",
+      "text": "Хочу решить вопрос по страховке, но пока не могу объяснить какой именно.",
+      "lang": "ru",
+      "type": "unclear",
+      "expected": ["SYS_UNCLEAR"]
+    }
+  ]
+}
